@@ -37,6 +37,27 @@ axiosRetry(axios, {
     error.response && (error.response.status === 429 || error.response.status >= 500),
 });
 
+const departmentList = [
+  { id: "634846000000006907", name: "IT Support" },
+  { id: "634846000000334045", name: "Wescon" },
+  { id: "634846000006115409", name: "ERP or SAP Support" },
+  { id: "634846000009938029", name: "EDI Support" },
+  { id: "634846000018669037", name: "Test Help Desk" },
+  { id: "634846000054176855", name: "Digitization" },
+  { id: "634846000054190373", name: "PLM or IoT & CAD Support" },
+];
+
+const removeAccents = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+};
+
 async function getAccessToken() {
   const now = Date.now();
   if (cachedAccessToken && accessTokenExpiry && now < accessTokenExpiry) {
@@ -47,7 +68,6 @@ async function getAccessToken() {
   params.append("client_id", clientId);
   params.append("client_secret", clientSecret);
   params.append("grant_type", "refresh_token");
-
   const response = await axios.post(
     "https://accounts.zoho.com/oauth/v2/token",
     params.toString(),
@@ -59,17 +79,21 @@ async function getAccessToken() {
 }
 
 async function fetchAllTickets(accessToken, departmentIds = [], agentId = null) {
-  let from = 1, limit = 100, allTickets = [];
+  let from = 1,
+    limit = 100,
+    allTickets = [];
   const deptIdsToFetch = departmentIds.length > 0 ? departmentIds : [null];
   for (const deptId of deptIdsToFetch) {
-    let continueFetching = true, pageFrom = 1;
+    let continueFetching = true,
+      pageFrom = 1;
     while (continueFetching) {
       const params = { from: pageFrom, limit };
       if (deptId) params.departmentId = deptId;
       if (agentId) params.agentId = agentId;
       const response = await limiter.schedule(() =>
         axios.get("https://desk.zoho.com/api/v1/tickets", {
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }, params
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+          params,
         })
       );
       const ticketsBatch = response.data.data || [];
@@ -82,11 +106,14 @@ async function fetchAllTickets(accessToken, departmentIds = [], agentId = null) 
 }
 
 async function fetchAllUsers(accessToken) {
-  let from = 1, limit = 100, allUsers = [];
+  let from = 1,
+    limit = 100,
+    allUsers = [];
   while (true) {
     const response = await limiter.schedule(() =>
       axios.get("https://desk.zoho.com/api/v1/users", {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }, params: { from, limit }
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        params: { from, limit },
       })
     );
     allUsers = allUsers.concat(response.data.data || []);
@@ -106,83 +133,67 @@ async function fetchUsersByIds(accessToken, ids) {
         })
       );
       users.push(response.data);
-    } catch (err) {
-      console.warn(`Could not fetch user ID ${id}:`, err.message);
-    }
+    } catch (err) {}
   }
   return users;
 }
 
 const statusMap = {
-  open: "open", "on hold": "hold", hold: "hold", closed: "closed",
-  "in progress": "inProgress", unassigned: "unassigned", "": "unassigned"
+  open: "open",
+  "on hold": "hold",
+  hold: "hold",
+  closed: "closed",
+  "in progress": "inProgress",
+  unassigned: "unassigned",
+  "": "unassigned",
 };
 
-// CONTINUED in Part 2...
+async function getAllAgentsForDepartment(departmentId, accessToken) {
+  const limit = 200; // max allowed
+  let from = 1;
+  let allAgents = [];
+  while (true) {
+    const response = await limiter.schedule(() =>
+      axios.get(`https://desk.zoho.com/api/v1/departments/${departmentId}/agents`, {
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        params: { from, limit },
+      })
+    );
+    const agentsBatch = response.data.data || [];
+    allAgents = allAgents.concat(agentsBatch);
+    if (agentsBatch.length < limit) break;
+    from += limit;
+  }
+  return allAgents;
+}
+
 app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
   try {
     let departmentIds = [];
     if (req.query.departmentIds) {
-      try { departmentIds = JSON.parse(req.query.departmentIds); }
-      catch { departmentIds = [req.query.departmentIds]; }
+      try {
+        departmentIds = JSON.parse(req.query.departmentIds);
+      } catch {
+        departmentIds = [req.query.departmentIds];
+      }
     }
     const agentId = req.query.agentId || null;
     const accessToken = await getAccessToken();
     let users = await fetchAllUsers(accessToken);
     const tickets = await fetchAllTickets(accessToken, departmentIds, agentId);
+    const departmentsResp = { data: { data: departmentList } };
+    const allDepartments = departmentsResp.data.data || [];
 
-    if (departmentIds.length > 0) {
-      const ticketStatusCountMap = {}, latestUnassignedTicketIdMap = {}, allUnassignedTicketNumbers = [];
-      for (const deptId of departmentIds) {
-        ticketStatusCountMap[deptId] = { open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0 };
-        latestUnassignedTicketIdMap[deptId] = null;
+    const deptAgentNameMap = {};
+    for (const dep of allDepartments) {
+      let agentNames = [];
+      try {
+        const agents = await getAllAgentsForDepartment(dep.id, accessToken);
+        agentNames = agents.map((a) => a.displayName || a.fullName || a.name || a.email || "Unknown");
+      } catch (err) {
+        agentNames = [];
       }
-      tickets.forEach((ticket) => {
-        const deptId = ticket.departmentId || null;
-        if (deptId && departmentIds.includes(deptId.toString())) {
-          const rawStatus = (ticket.status || "").toLowerCase();
-          const normalizedStatus = statusMap[rawStatus] || "unassigned";
-          const isEscalated = ticket.isEscalated === true || String(ticket.escalated).toLowerCase() === "true";
-          if (!ticketStatusCountMap[deptId]) {
-            ticketStatusCountMap[deptId] = { open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0 };
-            latestUnassignedTicketIdMap[deptId] = null;
-          }
-          if ((!ticket.assigneeId || ["null", "none", null].includes(ticket.assigneeId)) && normalizedStatus !== "closed") {
-            const ticketNumber = ticket.ticketNumber || ticket.id;
-            if (ticketNumber) allUnassignedTicketNumbers.push(ticketNumber);
-            const currentLatest = latestUnassignedTicketIdMap[deptId];
-            if (currentLatest === null ||
-              (typeof currentLatest === "number" && ticketNumber > currentLatest) ||
-              (typeof currentLatest === "string" && ticketNumber.localeCompare(currentLatest) > 0)
-            ) latestUnassignedTicketIdMap[deptId] = ticketNumber;
-          }
-          if ((!ticket.assigneeId || ["null", "none", null].includes(ticket.assigneeId)) && normalizedStatus === "closed") return;
-          if (!ticket.assigneeId || ["null", "none", null].includes(ticket.assigneeId)) ticketStatusCountMap[deptId].unassigned++;
-          else if (normalizedStatus === "unassigned" || isEscalated) ticketStatusCountMap[deptId].escalated++;
-          else if (normalizedStatus === "open") ticketStatusCountMap[deptId].open++;
-          else if (normalizedStatus === "hold") ticketStatusCountMap[deptId].hold++;
-          else if (normalizedStatus === "closed") ticketStatusCountMap[deptId].closed++;
-          else if (normalizedStatus === "inProgress") ticketStatusCountMap[deptId].inProgress++;
-        }
-      });
-      const response = await limiter.schedule(() =>
-        axios.get("https://desk.zoho.com/api/v1/departments", {
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }
-        })
-      );
-      const allDepartments = response.data.data || [];
-      const filteredDepartments = allDepartments.filter((dep) =>
-        departmentIds.includes(dep.id.toString())
-      );
-      const members = filteredDepartments.map((dep) => ({
-        id: dep.id,
-        name: dep.name,
-        tickets: ticketStatusCountMap[dep.id] || {
-          open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0,
-        },
-        latestUnassignedTicketId: latestUnassignedTicketIdMap[dep.id] || null,
-      }));
-      return res.json({ members, unassignedTicketNumbers: allUnassignedTicketNumbers });
+      deptAgentNameMap[dep.id] = agentNames;
     }
 
     const allAssigneeIds = new Set(tickets.map((t) => t.assigneeId).filter(Boolean));
@@ -192,25 +203,48 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
       const missingUsers = await fetchUsersByIds(accessToken, missingUserIds);
       users = users.concat(missingUsers);
     }
-    const ticketStatusCountMap = {}, latestUnassignedTicketIdMap = {};
+
+    const ticketStatusCountMap = {},
+      latestUnassignedTicketIdMap = {};
     users.forEach((user) => {
       ticketStatusCountMap[user.id] = {
-        open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0,
-      }; latestUnassignedTicketIdMap[user.id] = null;
+        open: 0,
+        closed: 0,
+        hold: 0,
+        escalated: 0,
+        unassigned: 0,
+        inProgress: 0,
+      };
+      latestUnassignedTicketIdMap[user.id] = null;
     });
     ticketStatusCountMap["unassigned"] = {
-      open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0
+      open: 0,
+      closed: 0,
+      hold: 0,
+      escalated: 0,
+      unassigned: 0,
+      inProgress: 0,
     };
     latestUnassignedTicketIdMap["unassigned"] = null;
+
     const allUnassignedTicketNumbers = [];
     tickets.forEach((ticket) => {
-      const assigneeRaw = ticket.assigneeId === undefined || ticket.assigneeId === null ? "" : ticket.assigneeId.toString().toLowerCase();
+      const assigneeRaw =
+        ticket.assigneeId === undefined || ticket.assigneeId === null
+          ? ""
+          : ticket.assigneeId.toString().toLowerCase();
       const isUnassignedAssignee = assigneeRaw === "" || assigneeRaw === "none" || assigneeRaw === "null";
       const assigneeId = isUnassignedAssignee ? "unassigned" : ticket.assigneeId;
       if (!ticketStatusCountMap[assigneeId]) {
         ticketStatusCountMap[assigneeId] = {
-          open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0,
-        }; latestUnassignedTicketIdMap[assigneeId] = null;
+          open: 0,
+          closed: 0,
+          hold: 0,
+          escalated: 0,
+          unassigned: 0,
+          inProgress: 0,
+        };
+        latestUnassignedTicketIdMap[assigneeId] = null;
       }
       const rawStatus = (ticket.status || "").toLowerCase();
       const normalizedStatus = statusMap[rawStatus] || "unassigned";
@@ -219,10 +253,12 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
         const ticketNumber = ticket.ticketNumber || ticket.id;
         if (ticketNumber) allUnassignedTicketNumbers.push(ticketNumber);
         const currentLatest = latestUnassignedTicketIdMap[assigneeId];
-        if (currentLatest === null ||
+        if (
+          currentLatest === null ||
           (typeof currentLatest === "number" && ticketNumber > currentLatest) ||
           (typeof currentLatest === "string" && ticketNumber.localeCompare(currentLatest) > 0)
-        ) latestUnassignedTicketIdMap[assigneeId] = ticketNumber;
+        )
+          latestUnassignedTicketIdMap[assigneeId] = ticketNumber;
       }
       if (isUnassignedAssignee && normalizedStatus === "closed") return;
       if (isUnassignedAssignee) ticketStatusCountMap["unassigned"].unassigned++;
@@ -232,78 +268,92 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
       else if (normalizedStatus === "closed") ticketStatusCountMap[assigneeId].closed++;
       else if (normalizedStatus === "inProgress") ticketStatusCountMap[assigneeId].inProgress++;
     });
+
     users.push({
-      id: "unassigned", fullName: "Unassigned", displayName: "Unassigned",
+      id: "unassigned",
+      fullName: "Unassigned",
+      displayName: "Unassigned",
     });
+
     const members = users
       .filter((user) => user.id in ticketStatusCountMap)
       .map((user) => {
-        let name = "Unknown";
-        if (user.firstName && user.lastName) name = `${user.firstName} ${user.lastName}`;
-        else if (user.fullName) name = user.fullName;
-        else if (user.displayName) name = user.displayName;
-        else if (user.name) name = user.name;
-        else if (user.email) name = user.email;
+        const candidateName = user.displayName || user.fullName || user.name || user.email || "Unknown";
+        let departmentIds = [];
+        for (const dep of allDepartments) {
+          if (
+            (user.departmentIds && user.departmentIds.includes(dep.id)) ||
+            (deptAgentNameMap[dep.id] && deptAgentNameMap[dep.id].includes(candidateName))
+          ) {
+            departmentIds.push(dep.id);
+          }
+        }
         return {
-          id: user.id, name,
+          id: user.id,
+          name: candidateName,
+          departmentIds,
           tickets: ticketStatusCountMap[user.id],
           latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
         };
       });
-    res.json({ members, unassignedTicketNumbers: allUnassignedTicketNumbers });
+
+    res.json({
+      members,
+      unassignedTicketNumbers: allUnassignedTicketNumbers,
+      departments: allDepartments.map((dep) => ({
+        id: dep.id,
+        name: dep.name,
+        description: dep.description,
+        agents: deptAgentNameMap[dep.id],
+      })),
+    });
   } catch (error) {
-    console.error("API error:", error.response?.data || error.message);
     res.status(500).json({ error: "Failed to fetch assignee ticket counts" });
   }
 });
 
-app.get("/api/agent-departments/:agentId", async (req, res) => {
+app.get("/api/zoho-departments", async (req, res) => {
   try {
-    const agentId = req.params.agentId;
-    if (!agentId) return res.status(400).json({ error: "Missing agentId parameter" });
     const accessToken = await getAccessToken();
-    const response = await limiter.schedule(() =>
-      axios.get("https://desk.zoho.com/api/v1/departments", {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-      })
-    );
-    const departments = response.data.data || [];
-    const departmentsWithAgent = [];
-    for (const department of departments) {
-      try {
-        const agentsResponse = await limiter.schedule(() =>
-          axios.get(`https://desk.zoho.com/api/v1/departments/${department.id}/agents`, {
-            headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-          })
-        );
-        const agents = agentsResponse.data.data || [];
-        if (agents.some((agent) => agent.id === agentId)) {
-          departmentsWithAgent.push({ id: department.id, name: department.name });
-        }
-      } catch (err) {
-        console.error(`Error fetching agents for department ${department.id}:`, err.message);
+    const allUsers = await fetchAllUsers(accessToken);
+    const deptUserMap = {};
+    departmentList.forEach((dep) => {
+      deptUserMap[dep.id] = [];
+    });
+    allUsers.forEach((user) => {
+      if (user.departmentIds && Array.isArray(user.departmentIds)) {
+        user.departmentIds.forEach((depId) => {
+          if (deptUserMap[depId]) {
+            const displayName = user.displayName || user.fullName || user.name || user.email || "Unknown";
+            deptUserMap[depId].push(displayName);
+          }
+        });
       }
-    }
-    res.json({ departments: departmentsWithAgent });
+    });
+    const departmentsWithUsers = departmentList.map((dep) => ({
+      ...dep,
+      agents: deptUserMap[dep.id] || [],
+    }));
+    res.json({ departments: departmentsWithUsers });
   } catch (error) {
-    console.error("API error in /api/agent-departments/:agentId:", error.message);
-    res.status(500).json({ error: "Failed to get agent's departments" });
+    res.status(500).json({ error: "Failed to fetch departments with users" });
   }
 });
 
 app.get("/api/zoho-department-ticket-counts", async (req, res) => {
   try {
     const accessToken = await getAccessToken();
-    const depResp = await limiter.schedule(() =>
-      axios.get("https://desk.zoho.com/api/v1/departments", {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-      })
-    );
-    const departments = depResp.data.data || [];
     const tickets = await fetchAllTickets(accessToken);
     const ticketStatusCountMap = {};
-    departments.forEach((dep) => {
-      ticketStatusCountMap[dep.id] = { open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0 };
+    departmentList.forEach((dep) => {
+      ticketStatusCountMap[dep.id] = {
+        open: 0,
+        closed: 0,
+        hold: 0,
+        escalated: 0,
+        unassigned: 0,
+        inProgress: 0,
+      };
     });
     tickets.forEach((ticket) => {
       const deptId = ticket.departmentId;
@@ -313,59 +363,49 @@ app.get("/api/zoho-department-ticket-counts", async (req, res) => {
         const isEscalated = ticket.isEscalated === true || String(ticket.escalated).toLowerCase() === "true";
         if ((!ticket.assigneeId || ["null", "none", null].includes(ticket.assigneeId)) && normalizedStatus !== "closed") {
           ticketStatusCountMap[deptId].unassigned++;
-        } else if (normalizedStatus === "unassigned" || isEscalated)
+        } else if (normalizedStatus === "unassigned" || isEscalated) {
           ticketStatusCountMap[deptId].escalated++;
-        else if (normalizedStatus === "open")
+        } else if (normalizedStatus === "open") {
           ticketStatusCountMap[deptId].open++;
-        else if (normalizedStatus === "hold")
+        } else if (normalizedStatus === "hold") {
           ticketStatusCountMap[deptId].hold++;
-        else if (normalizedStatus === "closed")
+        } else if (normalizedStatus === "closed") {
           ticketStatusCountMap[deptId].closed++;
-        else if (normalizedStatus === "inProgress")
+        } else if (normalizedStatus === "inProgress") {
           ticketStatusCountMap[deptId].inProgress++;
+        }
       }
     });
-    const departmentTicketCounts = departments.map((dep) => ({
+    const departmentTicketCounts = departmentList.map((dep) => ({
       id: dep.id,
       name: dep.name,
-      tickets: ticketStatusCountMap[dep.id] || { open: 0, closed: 0, hold: 0, escalated: 0, unassigned: 0, inProgress: 0 },
+      tickets: ticketStatusCountMap[dep.id] || {
+        open: 0,
+        closed: 0,
+        hold: 0,
+        escalated: 0,
+        unassigned: 0,
+        inProgress: 0,
+      },
     }));
     res.json({ departmentTicketCounts });
   } catch (error) {
-    console.error("API error in /api/zoho-department-ticket-counts:", error.message);
     res.status(500).json({ error: "Failed to get department ticket counts" });
   }
 });
 
-app.get("/api/zoho-departments", async (req, res) => {
+app.get("/api/department-members/:departmentId", async (req, res) => {
   try {
+    const { departmentId } = req.params;
     const accessToken = await getAccessToken();
-    const depResp = await limiter.schedule(() =>
-      axios.get("https://desk.zoho.com/api/v1/departments", {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }
-      })
-    );
-    const departments = depResp.data.data || [];
-    const departmentsWithAgents = await Promise.all(
-      departments.map(async (dep) => {
-        try {
-          const agentsResp = await limiter.schedule(() =>
-            axios.get(`https://desk.zoho.com/api/v1/departments/${dep.id}/agents`, {
-              headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }
-            })
-          );
-          const agents = (agentsResp.data.data || []).map(a =>
-            a.displayName || a.fullName || a.name || a.email || "Unknown"
-          );
-          return { ...dep, agents };
-        } catch (err) {
-          return { ...dep, agents: [] };
-        }
-      })
-    );
-    res.json({ departments: departmentsWithAgents });
+
+    // Use pagination function here for all agents!
+    const agents = await getAllAgentsForDepartment(departmentId, accessToken);
+
+    res.json({ members: agents });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch departments with agents" });
+    console.error("Failed to fetch department members:", error);
+    res.status(500).json({ error: "Failed to fetch department members" });
   }
 });
 
@@ -378,13 +418,14 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 function noop() {}
-function heartbeat() { this.isAlive = true; }
+function heartbeat() {
+  this.isAlive = true;
+}
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", heartbeat);
-  console.log("WebSocket client connected");
-  ws.on("error", (error) => { console.error("WebSocket error:", error); });
-  ws.on("close", (code, reason) => { console.log(`WebSocket closed: code=${code}, reason=${reason}`); });
+  ws.on("error", (_) => {});
+  ws.on("close", (_, __) => {});
 });
 setInterval(() => {
   wss.clients.forEach((ws) => {
