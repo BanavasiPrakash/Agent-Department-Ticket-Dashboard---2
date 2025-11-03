@@ -948,7 +948,7 @@ allDepartmentMemberNames.forEach((name) => {
               fontWeight: 900,
               fontSize: 60,
               letterSpacing: 2,
-              color: "White",
+              color: "#e0eaff",
               textShadow: "2px 2px 6px rgba(0, 0, 50, 0.7)",
               userSelect: "none",
               textTransform: "uppercase",

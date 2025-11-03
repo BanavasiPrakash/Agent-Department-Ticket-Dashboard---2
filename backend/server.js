@@ -167,6 +167,7 @@ async function getAllAgentsForDepartment(departmentId, accessToken) {
   return allAgents;
 }
 
+// Main endpoint with age-based counts
 app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
   try {
     let departmentIds = [];
@@ -290,6 +291,7 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
           }
         }
 
+        // Filter only tickets for this agent and not closed
         const agentTickets = tickets.filter(
           (t) =>
             String(t.assigneeId) === String(user.id) &&
@@ -297,27 +299,27 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
             t.status.toLowerCase() !== "closed"
         );
         const totalTicketCount = agentTickets.length;
-       const ticketsBetweenTwoWeeksAndMonth = agentTickets.filter((t) => {
-  if (!t.createdTime) return false;
-  const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-  return ageDays > 14 && ageDays <= 30;
-}).length;
+        const ticketsOlderThanWeek = agentTickets.filter((t) => {
+          if (!t.createdTime) return false;
+          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
+          return ageDays > 7;
+        }).length;
         const ticketsOlderThanMonth = agentTickets.filter((t) => {
-  if (!t.createdTime) return false;
-  const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-  return ageDays > 30;
-}).length;
+          if (!t.createdTime) return false;
+          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
+          return ageDays > 30;
+        }).length;
 
         return {
-  id: user.id,
-  name: candidateName,
-  departmentIds,
-  tickets: ticketStatusCountMap[user.id],
-  latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
-  ticketsBetweenTwoWeeksAndMonth,
-  ticketsOlderThanMonth,
-  totalTicketCount,
-};
+          id: user.id,
+          name: candidateName,
+          departmentIds,
+          tickets: ticketStatusCountMap[user.id],
+          latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
+          ticketsOlderThanWeek,
+          ticketsOlderThanMonth,
+          totalTicketCount, // Optionally also return this value
+        };
       });
 
     res.json({
@@ -424,6 +426,7 @@ app.get("/api/department-members/:departmentId", async (req, res) => {
     const agents = await getAllAgentsForDepartment(departmentId, accessToken);
     res.json({ members: agents });
   } catch (error) {
+    console.error("Failed to fetch department members:", error);
     res.status(500).json({ error: "Failed to fetch department members" });
   }
 });

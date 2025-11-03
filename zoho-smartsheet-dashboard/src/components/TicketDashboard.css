@@ -804,7 +804,6 @@ Hamburger button style
   scrollbar-color: #b5c1e7 #eaeefd;
 }
 
-
 .dropbtn {
   /* width: 80px; match AGENTS/DEPARTMENT width for consistency */
   /* height: 40px; */
@@ -844,5 +843,4 @@ button.time-dropdown::after {
   border-top: 5px solid #606060;
   transform: translateY(-50%);
 }
-
 
