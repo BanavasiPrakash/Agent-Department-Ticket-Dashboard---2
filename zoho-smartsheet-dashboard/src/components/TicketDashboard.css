@@ -8,16 +8,16 @@
   align-items: flex-start;
   justify-content: space-between;
   width: 100%;
-  max-width: 1300px;
+  max-width: 1400px;
   margin: 0 auto 20px auto;
-  gap: 20px;
+  gap: 2px;
 }
 
 .header-left {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
 }
 
 .header-image {
@@ -96,7 +96,7 @@
 
 .legend-item span {
   margin-left: 10px;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
 }
 
@@ -114,7 +114,7 @@
   font-weight: 900;
   font-size: 44px;
   letter-spacing: 2px;
-  color: #e0eaff;
+  color: white;
   text-shadow: 2px 2px 6px rgba(0, 0, 50, 0.7);
   user-select: none;
   text-transform: uppercase;
@@ -249,10 +249,10 @@
 
 .ticket-counts:hover {
   border-color: #3a59d1;
-  box-shadow: 6px 6px 24px rgba(0, 76, 255, 0.85),
+  /* box-shadow: 6px 6px 24px rgba(0, 76, 255, 0.85),
     -6px -6px 24px rgba(255, 255, 255, 0.95),
     inset 6px 6px 18px rgba(255, 255, 255, 1),
-    inset -6px -6px 18px rgba(0, 76, 255, 0.85);
+    inset -6px -6px 18px rgba(0, 76, 255, 0.85); */
 }
 
 .count-box {
@@ -282,31 +282,31 @@
 }
 
 .count-box.hold {
-  color: #b28900;           /* golden yellow */
+  color: white;           /* golden yellow */
   /* border: 1px solid #ffc107;  amber border */
   border-top: 4px solid #ffc107;
 }
 
 .count-box.closed {
-  color: #d32f2f;           /* bright red */
+  color: white;           /* bright red */
   /* border: 1px solid #f44336;  red border */
   border-top: 4px solid #f44336;
   
 }
 .count-box.escalated {
-  color: #ef6724;           /* bright red */
+  color: white;           /* bright red */
   /* border: 1px solid #f44336;  red border */
   border-top: 4px solid #ef6724;
   
 }
 .count-box.unassigned {
-  color: #1e4489;           /* bright red */
+  color: white;           /* bright red */
   /* border: 1px solid #f44336;  red border */
   border-top: 4px solid #1e4489;
   
 }
 .count-box.inprogress {
-  color: #5a2e9d;           /* bright red */
+  color: white;           /* bright red */
   /* border: 1px solid #f44336;  red border */
   border-top: 4px solid #5a2e9d;
   
@@ -344,19 +344,19 @@
   @keyframes glowShadow {
   0%, 100% {
     box-shadow:
-      3px 3px 9px rgba(204, 0, 255, 0.7),      /* magenta */
-      -3px -3px 9px rgba(0, 255, 255, 0.6),    /* cyan */
-      inset 2px 2px 6px rgba(255, 220, 50, 0.7), /* yellow */
-      inset -2px -2px 6px rgba(55, 125, 255, 0.6), /* blue */
-      0 0 8px rgba(255, 65, 120, 0.7);         /* pink */
+      3px 3px 3px rgba(204, 0, 255, 0.7),      
+      -3px -3px 3px rgba(0, 255, 255, 0.6),    
+      inset 2px 2px 3px rgba(255, 220, 50, 0.7), 
+      inset -2px -2px 3px rgba(55, 125, 255, 0.6), 
+      0 0 4px rgba(255, 65, 120, 0.7);         
   }
   50% {
     box-shadow:
-      4px 4px 14px rgba(0, 255, 255, 0.8),     /* cyan */
-      -4px -4px 14px rgba(255, 50, 220, 0.9),  /* magenta-pink swap */
-      inset 4px 4px 10px rgba(255, 220, 50, 1),/* yellow */
-      inset -4px -4px 10px rgba(255, 0, 122, 0.7), /* bright pink */
-      0 0 12px rgba(255, 255, 0, 0.6);         /* yellow edge glow */
+      2px 2px 2px rgba(0, 255, 255, 0.8),     
+      -4px -4px 2px rgba(255, 50, 220, 0.9),  
+      inset 4px 4px 2px rgba(255, 220, 50, 1),
+      inset -4px -4px 2px rgba(255, 0, 122, 0.7), 
+      0 0 4px rgba(255, 255, 0, 0.6);         
   }
 }
 
@@ -449,13 +449,13 @@ Hamburger button style
   color: white;
 }
 .count-box.open {
-  color: #bd2331; /* Red */
+  color: white; /* Red */
   border-top: 4px solid #bd2331;
 }
 
 .legend-item.closed {
   border-top: 4px solid #4CAF50;
-  color: #2e7d32;
+  color: white;
 }
 .count-box.closed {
   color: #20bc52; /* Green */
@@ -534,11 +534,11 @@ Hamburger button style
 
 @keyframes blinkRedBox {
   0%, 100% {
-    background: linear-gradient(90deg, #d43838 70%,  #fc2626);
+    background: linear-gradient(90deg, #d43838 50%,  #fc2626);
     box-shadow: 0 1.5px 8px #d4383860, 0 2px 12px #fc828230;
   }
   50% {
-    background: linear-gradient(90deg, #fc2626 70%,  #fc2626);
+    background: linear-gradient(90deg, #fc2626 50%,  #fc2626);
     box-shadow: 0 2px 16px #d4383880, 0 2px 14px #fc828250;
   }
 }
@@ -551,7 +551,7 @@ Hamburger button style
   align-items: center;
   justify-content: space-between;
   padding: 0 0px;
-  font-size: 22px;
+  font-size: 23px;
   /* height: 52px;   <-- REMOVE THIS LINE */
   box-shadow: 0 1.5px 8px #d4383860, 0 2px 12px #fc828230;
   margin-left: 0;
@@ -566,7 +566,7 @@ Hamburger button style
   border-radius: 12px;
   padding: 6px 10px;
   font-weight: 800;
-  font-size: 22px;
+  font-size: 28px;
   min-width: 0;
   text-align: center;
   box-shadow: 0 1.5px 8px #233a6c60;
@@ -803,3 +803,46 @@ Hamburger button style
   scrollbar-width: thin;
   scrollbar-color: #b5c1e7 #eaeefd;
 }
+
+
+.dropbtn {
+  /* width: 80px; match AGENTS/DEPARTMENT width for consistency */
+  /* height: 40px; */
+  border-radius: 18px;
+  border: 1px solid #5e7ce4;
+  font-weight: 900;
+  background: linear-gradient(145deg, #d0daf9, #a3baff);
+  color: #606060;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 8px 8px 28px rgba(63,81,181,0.8),
+    inset 6px 6px 14px #fff,
+    inset -6px -6px 14px rgba(48,62,142,0.85);
+  font-family: 'Poppins', 'Montserrat', sans-serif;
+  padding: 0 12px;
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+.dropbtn:focus,
+.dropbtn:hover {
+  border-color: white;
+  box-shadow: 0 0 14px #1228ee90;
+}
+button.time-dropdown {
+  position: relative;
+  padding-right: 30px; /* space for arrow */
+}
+button.time-dropdown::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #606060;
+  transform: translateY(-50%);
+}
+
+

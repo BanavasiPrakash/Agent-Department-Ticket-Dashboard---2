@@ -4,7 +4,16 @@
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   padding: 30px;
-  background: #3fabed;
+  /* background: #3fabe0;  */
+  background: linear-gradient(
+    210deg,
+    #bd2331 2%, 
+    #3fabe0 15%,  
+    #8fc63d 60%,   
+    #bd2331 95%    
+);
+
+  min-height: 100vh;
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
