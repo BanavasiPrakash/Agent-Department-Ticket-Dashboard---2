@@ -402,7 +402,7 @@ const [selectedAges, setSelectedAges] = useState([]);
       if (ticketCounts.some((count) => count > 0)) validNames.push(name);
     });
     return Array.from(new Set(validNames))
-      .sort((a, b) => a.localeCompare(b, undefined, {sensitivity: "base"}))
+      .sort()
       .map((name) => ({ value: name, label: name }));
   }, [rows]);
 
