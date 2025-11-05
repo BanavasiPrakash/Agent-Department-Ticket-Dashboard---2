@@ -79,13 +79,10 @@ async function getAccessToken() {
 }
 
 async function fetchAllTickets(accessToken, departmentIds = [], agentId = null) {
-  let from = 1,
-    limit = 100,
-    allTickets = [];
+  let from = 1, limit = 100, allTickets = [];
   const deptIdsToFetch = departmentIds.length > 0 ? departmentIds : [null];
   for (const deptId of deptIdsToFetch) {
-    let continueFetching = true,
-      pageFrom = 1;
+    let continueFetching = true, pageFrom = 1;
     while (continueFetching) {
       const params = { from: pageFrom, limit };
       if (deptId) params.departmentId = deptId;
@@ -106,9 +103,7 @@ async function fetchAllTickets(accessToken, departmentIds = [], agentId = null) 
 }
 
 async function fetchAllUsers(accessToken) {
-  let from = 1,
-    limit = 100,
-    allUsers = [];
+  let from = 1, limit = 100, allUsers = [];
   while (true) {
     const response = await limiter.schedule(() =>
       axios.get("https://desk.zoho.com/api/v1/users", {
@@ -133,7 +128,7 @@ async function fetchUsersByIds(accessToken, ids) {
         })
       );
       users.push(response.data);
-    } catch (err) {}
+    } catch (err) { }
   }
   return users;
 }
@@ -167,7 +162,6 @@ async function getAllAgentsForDepartment(departmentId, accessToken) {
   return allAgents;
 }
 
-// Main endpoint with age-based counts
 app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
   try {
     let departmentIds = [];
@@ -291,7 +285,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
           }
         }
 
-        // Filter only tickets for this agent and not closed
         const agentTickets = tickets.filter(
           (t) =>
             String(t.assigneeId) === String(user.id) &&
@@ -309,6 +302,11 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
           const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
           return ageDays > 30;
         }).length;
+        const ticketsBetweenTwoWeeksAndMonth = agentTickets.filter((t) => {
+          if (!t.createdTime) return false;
+          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
+          return ageDays >= 14 && ageDays < 30;
+        }).length;
 
         return {
           id: user.id,
@@ -318,7 +316,8 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
           latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
           ticketsOlderThanWeek,
           ticketsOlderThanMonth,
-          totalTicketCount, // Optionally also return this value
+          ticketsBetweenTwoWeeksAndMonth,
+          totalTicketCount,
         };
       });
 
@@ -426,7 +425,6 @@ app.get("/api/department-members/:departmentId", async (req, res) => {
     const agents = await getAllAgentsForDepartment(departmentId, accessToken);
     res.json({ members: agents });
   } catch (error) {
-    console.error("Failed to fetch department members:", error);
     res.status(500).json({ error: "Failed to fetch department members" });
   }
 });
@@ -439,15 +437,13 @@ const webhookLimiter = rateLimit({ windowMs: 1000, max: 10, message: "Too many w
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-function noop() {}
-function heartbeat() {
-  this.isAlive = true;
-}
+function noop() { }
+function heartbeat() { this.isAlive = true; }
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", heartbeat);
-  ws.on("error", (_) => {});
-  ws.on("close", (_, __) => {});
+  ws.on("error", (_) => { });
+  ws.on("close", (_, __) => { });
 });
 setInterval(() => {
   wss.clients.forEach((ws) => {

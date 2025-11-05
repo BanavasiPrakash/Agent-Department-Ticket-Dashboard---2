@@ -462,6 +462,15 @@ const [selectedAges, setSelectedAges] = useState([]);
     "linear-gradient(135deg, #6ef9a0 30%, #58d6ff 100%)",
     "linear-gradient(135deg, #ffe298 30%, #ff8e91 100%)",
   ];
+//   const departmentBgColors = [
+//   "linear-gradient(135deg, #283f74 30%, #181c31 100%)",    // Deep blue to almost black
+//   "linear-gradient(135deg, #1c232c 30%, #343c47 100%)",    // Slate/dark grey gradient
+//   "linear-gradient(135deg, #232844 30%, #2e3447 100%)",    // Indigo-black blend
+//   "linear-gradient(135deg, #1a2241 30%, #24345a 100%)",    // Midnight blue tones
+//   "linear-gradient(135deg, #121526 30%, #243159 100%)",    // Black-blue steel
+// ];
+
+  
   const showLegendTotal = selectedStatuses.some((s) => s.value === "total");
   const currentTicketNumber =
     unassignedTicketNumbers.length > 0
@@ -948,7 +957,7 @@ allDepartmentMemberNames.forEach((name) => {
               fontWeight: 900,
               fontSize: 60,
               letterSpacing: 2,
-              color: "#e0eaff",
+              color: "",
               textShadow: "2px 2px 6px rgba(0, 0, 50, 0.7)",
               userSelect: "none",
               textTransform: "uppercase",
@@ -1202,15 +1211,15 @@ allDepartmentMemberNames.forEach((name) => {
     style={{
       position: "absolute",
       width: "100%",
-      height: 50,
+      height: 60,
       fontSize: 10,
       top: 50,
       left: 0,
       minWidth: 100,
-      background: "white",
-      color: "#606060",
+      background: "#dbdee7ff",
+      color: "black",
       borderRadius: 18,
-      border: "1px solid #5e7ce4",
+      border: "1px solid #1e4489",
       zIndex: 8,
       padding: "10px"
     }}

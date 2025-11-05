@@ -1,11 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function AgentTicketAgeTable({
   membersData,
   onClose,
-  selectedAges = ["twoWeeks", "month"],
+  selectedAges = ["sevenDays", "twoWeeks", "month"], // Show all by default
   showTimeDropdown
 }) {
+  const [hoveredRowIndex, setHoveredRowIndex] = useState(null);
+
+  // Age columns config (add sevenDays)
+  const ageColumns = [
+    { key: "sevenDays", label: "1-7 Days Tickets" },
+    { key: "twoWeeks", label: "14 - 30 Days Tickets" },
+    { key: "month", label: "30+ Days Tickets" }
+  ];
+  const visibleAgeColumns = ageColumns.filter(col => selectedAges.includes(col.key));
+  const columnsToShow = [
+    { key: "name", label: "Agent Name" },
+    { key: "total", label: "Total Ticket Count" },
+    ...(visibleAgeColumns.length > 0 ? visibleAgeColumns : [ageColumns[0]])
+  ];
+  
+  // Map rows, including the new 1-7 Days column
   const tableRows = membersData
     .map(agent => {
       const tickets = agent.tickets || {};
@@ -18,6 +34,7 @@ export default function AgentTicketAgeTable({
       return {
         name: agent.name,
         total,
+        sevenDays: agent.ticketsBetweenOneAndSevenDays || 0, // NEW COLUMN
         twoWeeks: agent.ticketsBetweenTwoWeeksAndMonth || 0,
         month: agent.ticketsOlderThanMonth || 0,
       };
@@ -25,99 +42,109 @@ export default function AgentTicketAgeTable({
     .filter(row => row.total > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // columns config
-  const ageColumns = [
-    { key: "twoWeeks", label: "14 - 30 Days  Tickets" },
-    { key: "month", label: "30+ Days  Tickets" }
-  ];
+  const cellStyle3D = {
+    padding: 14,
+    fontWeight: 700,
+    borderRadius: 12,
+    background: 'linear-gradient(135deg, #23272f 60%, #15171a 100%)',
+    color: '#f4f4f4',
+    borderTop: '2px solid #4070d6',  // blue
+    borderLeft: '2px solid #3a65ca', // blue
+    borderBottom: '2.5px solid #1c2a5f', // dark blue
+    borderRight: '2.5px solid #162158',   // dark blue
+    transition: 'background 0.18s',
+    cursor: 'pointer'
+  };
 
-  // filter columns to show only selected
-  const columnsToShow = [
-    { key: "name", label: "Agent Name" },
-    { key: "total", label: "Total Ticket Count" },
-    ...ageColumns.filter(col => selectedAges.includes(col.key))
-  ];
+  const cellStyle3DHovered = {
+    ...cellStyle3D,
+    background: 'linear-gradient(135deg, #2446a3 60%, #293956 100%)',
+    color: '#fff'
+  };
+
+  const headerStyle3D = {
+    padding: 14,
+    textAlign: 'center',
+    fontWeight: 900,
+    background: 'linear-gradient(135deg, #3752a6 70%, #23355a 100%)',
+    color: '#fff',
+    borderTop: '2px solid #5375ce',
+    borderLeft: '2px solid #6d90e5',
+    borderBottom: '2px solid #1e2950',
+    borderRight: '2px solid #182345',
+    borderRadius: '12px 12px 0 0'
+  };
+
+  React.useEffect(() => {
+    const handleDoubleClick = () => {
+      if (onClose) onClose();
+    };
+    window.addEventListener('dblclick', handleDoubleClick);
+    return () => window.removeEventListener('dblclick', handleDoubleClick);
+  }, [onClose]);
 
   return (
-    <div style={{ margin: '14px auto', maxWidth: 1400, position: 'relative' }}>
-      {/* Close button overlays the corner, only shown if Time dropdown is not open */}
-      {!showTimeDropdown && onClose && (
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 12,
-            background: '#bd2331',
-            color: 'white',
-            border: '5px solid #bd2331',
-            borderRadius: '50%',
-            width: 26,
-            height: 26,
-            fontSize: 16,
-            fontWeight: 900,
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px #1e448960, 0 1px 8px #fff5 inset',
-            transition: 'background 0.18s, box-shadow 0.18s, color 0.18s',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10
-          }}
-          aria-label="Close table"
-        >
-          ×
-        </button>
-      )}
-
-      <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #1e4489', fontSize: 18 }}>
+    <div style={{ margin: '24px auto', maxWidth: 1400, position: 'relative' }}>
+      <table style={{
+        width: '100%',
+        borderCollapse: 'separate',
+        borderRadius: 16,
+        border: '2px solid #32406b',
+        fontSize: 18
+      }}>
         <thead>
-          <tr style={{ background: '#1E4489', color: 'white', fontWeight: 900 }}>
+          <tr>
             {columnsToShow.map(col => (
-              <th
-                style={{
-                  border: '1px solid Black',
-                  padding: 10,
-                  textAlign: 'center', // always center header (including Agent Name)
-                  verticalAlign: 'middle',
-                  fontWeight: 900
-                }}
-                key={col.key}
-              >
+              <th key={col.key} style={headerStyle3D}>
                 {col.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {tableRows.map(row => (
-            <tr
-              key={row.name}
-              style={{
-                background: 'Black',
-                color: 'white',
-                fontSize: 16,
-                fontWeight: 700,
-                borderBottom: '1px solid Black'
-              }}
-            >
-              {columnsToShow.map(col => (
-                <td
-                  style={{
-                    border: '1px solid #606060',
-                    padding: 10,
-                    // Agent name cells left, others center
-                    textAlign: col.key === "name" ? 'left' : 'center',
-                    verticalAlign: 'middle',
-                    fontWeight: 700
-                  }}
-                  key={col.key}
-                >
-                  {row[col.key]}
-                </td>
-              ))}
+          {tableRows.length === 0 ? (
+            <tr>
+              <td colSpan={columnsToShow.length} style={{
+                textAlign: 'center',
+                padding: 28,
+                color: '#dedede',
+                fontSize: 19,
+                background: 'linear-gradient(110deg, #181b26 80%, #16171a 100%)',
+                borderRadius: 14
+              }}>
+                No data available
+              </td>
             </tr>
-          ))}
+          ) : (
+            tableRows.map((row, rowIndex) => (
+              <tr
+                key={row.name}
+                style={{
+                  background: hoveredRowIndex === rowIndex
+                    ? 'linear-gradient(120deg, #2446a3 85%, #293956 100%)'
+                    : 'linear-gradient(120deg, #16171a 82%, #232d3d 100%)',
+                  color: 'white',
+                  fontSize: 17,
+                  fontWeight: 700,
+                  borderBottom: '2px solid #2b3243'
+                }}
+              >
+                {columnsToShow.map(col => (
+                  <td
+                    key={col.key}
+                    style={hoveredRowIndex === rowIndex
+                      ? { ...cellStyle3DHovered, textAlign: col.key === "name" ? 'left' : 'center' }
+                      : { ...cellStyle3D, textAlign: col.key === "name" ? 'left' : 'center' }
+                    }
+                    onMouseEnter={() => setHoveredRowIndex(rowIndex)}
+                    onMouseLeave={() => setHoveredRowIndex(null)}
+                  >
+                    {row[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

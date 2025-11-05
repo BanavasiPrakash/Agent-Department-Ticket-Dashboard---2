@@ -59,12 +59,6 @@
   /* Add color variants via .open, .hold, etc. classes as needed */
 }
 
-
-
-
-
-
-
 /* ...keep your color overrides for .legend-item.open, .legend-item.closed, etc. ...  */
 
 .legend-item.open {
@@ -169,8 +163,6 @@
   text-align: center;
   margin-top: 90px;
 }
-
-
 
 .grid-container {
   display: grid;
@@ -312,7 +304,6 @@
   
 }
 
-
 /* .count-box:hover {
   background-color: #f0f4ff;
   transform: translateY(-4px) scale(1.05);
@@ -360,9 +351,6 @@
   }
 }
 
-
-
-
 .open {
   border-top: 4px solid #4CAF50;
 }
@@ -372,7 +360,7 @@
 }
 
 .escalated {
-  border-top: 4px solid #F44336;
+  border-top: 4px solid #ef6724;
 }
 .pagination-container {
   display: flex;
@@ -429,8 +417,6 @@
   box-shadow: 0 0 8px #2c3e50;
 }
 
-
-
 .legend-item {
   box-shadow: 8px 8px 28px rgba(63,81,181,0.8), inset 6px 6px 14px #fff, inset -6px -6px 14px rgba(48,62,142,0.85); background: linear-gradient(145deg,#d0daf9,#a3baff); border-radius: 18px; border: 1px solid #5e7ce4;
 }
@@ -469,8 +455,6 @@ Hamburger button style
   align-items: center;
   width: 100%;
 }
-
-
 
 .blink-red {
   animation: blinkGlow 1.5s ease-in-out infinite;
@@ -531,7 +515,6 @@ Hamburger button style
   }
 } */
 
-
 @keyframes blinkRedBox {
   0%, 100% {
     background: linear-gradient(90deg, #d43838 50%,  #fc2626);
@@ -583,7 +566,6 @@ Hamburger button style
   padding-right: 10px;
   
 }
-
 
 .unassigned-box-blink {
   color: white; /* Green */
@@ -784,7 +766,6 @@ Hamburger button style
   top: 1.5px;
   transform: rotate(45deg);
 }
-
 
 /* Slim and short scrollbars for React Select */
 .react-select__menu-list::-webkit-scrollbar {
