@@ -1,3 +1,4 @@
+
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
@@ -270,56 +271,91 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
       displayName: "Unassigned",
     });
 
-    const now = Date.now();
-    const members = users
-      .filter((user) => user.id in ticketStatusCountMap)
-      .map((user) => {
-        const candidateName = user.displayName || user.fullName || user.name || user.email || "Unknown";
-        let departmentIds = [];
-        for (const dep of allDepartments) {
-          if (
-            (user.departmentIds && user.departmentIds.includes(dep.id)) ||
-            (deptAgentNameMap[dep.id] && deptAgentNameMap[dep.id].includes(candidateName))
-          ) {
-            departmentIds.push(dep.id);
-          }
-        }
+   const now = Date.now();
+const members = users
+  .filter((user) => user.id in ticketStatusCountMap)
+  .map((user) => {
+    const candidateName = user.displayName || user.fullName || user.name || user.email || "Unknown";
+    let departmentIds = [];
+    for (const dep of allDepartments) {
+      if (
+        (user.departmentIds && user.departmentIds.includes(dep.id)) ||
+        (deptAgentNameMap[dep.id] && deptAgentNameMap[dep.id].includes(candidateName))
+      ) {
+        departmentIds.push(dep.id);
+      }
+    }
 
-        const agentTickets = tickets.filter(
-          (t) =>
-            String(t.assigneeId) === String(user.id) &&
-            t.status &&
-            t.status.toLowerCase() !== "closed"
-        );
-        const totalTicketCount = agentTickets.length;
-        const ticketsOlderThanWeek = agentTickets.filter((t) => {
-          if (!t.createdTime) return false;
-          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-          return ageDays > 7;
-        }).length;
-        const ticketsOlderThanMonth = agentTickets.filter((t) => {
-          if (!t.createdTime) return false;
-          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-          return ageDays > 30;
-        }).length;
-        const ticketsBetweenTwoWeeksAndMonth = agentTickets.filter((t) => {
-          if (!t.createdTime) return false;
-          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-          return ageDays >= 14 && ageDays < 30;
-        }).length;
+    const agentTickets = tickets.filter(
+      (t) =>
+        String(t.assigneeId) === String(user.id) &&
+        t.status &&
+        t.status.toLowerCase() !== "closed"
+    );
 
-        return {
-          id: user.id,
-          name: candidateName,
-          departmentIds,
-          tickets: ticketStatusCountMap[user.id],
-          latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
-          ticketsOlderThanWeek,
-          ticketsOlderThanMonth,
-          ticketsBetweenTwoWeeksAndMonth,
-          totalTicketCount,
-        };
-      });
+    const totalTicketCount = agentTickets.length;
+    const ticketsOlderThanWeek = agentTickets.filter((t) => {
+      if (!t.createdTime) return false;
+      const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
+      return ageDays > 7;
+    }).length;
+    const ticketsOlderThanMonth = agentTickets.filter((t) => {
+      if (!t.createdTime) return false;
+      const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
+      return ageDays > 30;
+    }).length;
+    const ticketsBetweenTwoWeeksAndMonth = agentTickets.filter((t) => {
+      if (!t.createdTime) return false;
+      const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
+      return ageDays >= 14 && ageDays < 30;
+    }).length;
+
+    // ---- BEGIN PER-STATUS PER-AGE FIELDS ----
+    const statusKeys = ["open", "hold", "inProgress", "escalated"];
+    let perStatusAge = {};
+    statusKeys.forEach(status => {
+      // 1-13 days
+      perStatusAge[`${status}BetweenOneAndThirteenDays`] = agentTickets.filter(t => {
+        const rawStatus = (t.status || "").toLowerCase();
+        const normalized = statusMap[rawStatus] || rawStatus;
+        const ageDays = t.createdTime ? (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+        return normalized === status && ageDays !== null && ageDays < 14 && ageDays >= 0;
+      }).length;
+
+      // 14-30 days
+      perStatusAge[`${status}BetweenTwoWeeksAndMonth`] = agentTickets.filter(t => {
+        const rawStatus = (t.status || "").toLowerCase();
+        const normalized = statusMap[rawStatus] || rawStatus;
+        const ageDays = t.createdTime ? (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+        return normalized === status && ageDays !== null && ageDays >= 14 && ageDays < 30;
+      }).length;
+      // 30+ days
+      perStatusAge[`${status}OlderThanMonth`] = agentTickets.filter(t => {
+        const rawStatus = (t.status || "").toLowerCase();
+        const normalized = statusMap[rawStatus] || rawStatus;
+        const ageDays = t.createdTime ? (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+        return normalized === status && ageDays !== null && ageDays > 30;
+      }).length;
+    });
+    // ---- END PER-STATUS PER-AGE FIELDS ----
+
+  return {
+  id: user.id,
+  name: candidateName,
+  departmentIds,
+  tickets: {         // Put all counts, base and age-stats, in tickets
+    ...ticketStatusCountMap[user.id],
+    ...perStatusAge
+  },
+  latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
+  ticketsOlderThanWeek,
+  ticketsOlderThanMonth,
+  ticketsBetweenTwoWeeksAndMonth,
+  totalTicketCount,
+};
+
+  });
+
 
     res.json({
       members,
