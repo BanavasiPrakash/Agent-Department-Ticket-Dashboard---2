@@ -210,6 +210,17 @@ function TicketDashboard() {
   const intervalRef = useRef(null);
   // State to keep track of which age columns are selected (default to both selected, or empty for none)
 const [selectedAges, setSelectedAges] = useState([]);
+// Calculate filtered agents based on selectedDepartments
+const filteredMembers =
+  selectedDepartments && selectedDepartments.length > 0
+    ? membersData.filter(agent =>
+        agent.departmentIds &&
+        agent.departmentIds.some(deptId =>
+          selectedDepartments.map(d => String(d.value)).includes(String(deptId))
+        )
+      )
+    : membersData;
+
 
 
   const statusOptions = [
@@ -550,28 +561,13 @@ const [selectedAges, setSelectedAges] = useState([]);
                 {(counts.open || 0) + (counts.hold || 0) + (counts.inProgress || 0) + (counts.escalated || 0) + (counts.unassigned || 0)}
               </div>
             ) : (
-             selectedStatusKeys
+       selectedStatusKeys
   .filter((k) => k !== "total")
   .map((key) => (
-    <div
-      key={key}
-      className={`count-box status-${key}`}
-      style={{
-        minWidth: 40,
-        minHeight: 60,
-        background: statusColors[key] || "#0a2d62",  // <-- THE IMPORTANT PART
-        borderRadius: 9,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: key === "hold" ? "white" : "white",
-        fontWeight: 900,
-        fontSize: 26,
-        margin: "2px",
-      }}
-    >
+    <div className={`agent-status-box ${key.toLowerCase()}`} key={key}>
       {counts[key] ?? 0}
     </div>
+
   ))
 
             )}
@@ -739,7 +735,7 @@ allDepartmentMemberNames.forEach((name) => {
                     borderRadius: 17,
                     textAlign: "center",
                     marginBottom: 15,
-                    maxWidth: 360,
+                    maxWidth: 400,
                     width: "350px",
                     display: "flex",
                     alignItems: "center",
@@ -762,43 +758,41 @@ allDepartmentMemberNames.forEach((name) => {
                     boxSizing: "border-box",
                   }}
                 >
-                  {sortedAgentsToShow.map((agent, index) => (
-                    <div
-                      key={agent.id || `${dep.value}_${index}`}
-                      style={{
-                        background: "rgba(32, 50, 98, 0.96)",
-                        borderRadius: 18,
-                        boxShadow: "0 2px 12px #34495e36, inset 0 2px 8px #ffc80013",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        padding: "12px 8px",
-                        border: "3px solid #4ea1eb",
-                        minWidth: 180,
-                        maxWidth: 220,
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      <div
-                        style={{
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: 18,
-                          textAlign: "center",
-                          marginBottom: 6,
-                          wordBreak: "break-word",
-                          width: "100%",
-                          minHeight: "48px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {agent.name}
-                      </div>
-                      
-{(selectedStatusKeys.includes("total") || selectedStatusKeys.length === 0)
-  ? (
+              {sortedAgentsToShow.map((agent, index) => (
+  <div
+    key={agent.id || `${dep.value}_${index}`}
+    style={{
+      background: "rgba(32, 50, 98, 0.96)",
+      borderRadius: 18,
+      boxShadow: "0 2px 12px #34495e36, inset 0 2px 8px #ffc80013",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      padding: "12px 8px",
+      border: "3px solid #4ea1eb",
+      minWidth: 180,
+      maxWidth: 220,
+      boxSizing: "border-box",
+    }}
+  >
+    <div
+      style={{
+        color: "#fff",
+        fontWeight: 700,
+        fontSize: 18,
+        textAlign: "center",
+        marginBottom: 6,
+        wordBreak: "break-word",
+        width: "100%",
+        minHeight: "48px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {agent.name}
+    </div>
+    {(selectedStatusKeys.includes("total") || selectedStatusKeys.length === 0) ? (
       <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
         <div
           style={{
@@ -818,49 +812,34 @@ allDepartmentMemberNames.forEach((name) => {
           {agent.totalTickets}
         </div>
       </div>
-    )
-  : (
+    ) : (
       <div
         style={{
           display: "flex",
           flexDirection: "row",
-          flexWrap: "wrap",
-          gap: "10px",
+          // flexWrap: "wrap",
+          // gap: "2px",
           justifyContent: "center",
           alignItems: "center",
           width: "100%",
           boxSizing: "border-box",
           marginTop: 8,
+          flexWrap: "nowrap"
         }}
       >
-        {selectedStatusKeys.map((key) => (
+        {selectedStatusKeys.filter(key => key !== "total").map((key) => (
           <div
             key={key}
-            style={{
-              fontSize: 16,
-              fontWeight: 900,
-              background: statusColors[key] || "#EF6724",
-              color: key === "hold" ? "white" : "White", // make text dark if background is yellow
-              borderRadius: 9,
-              padding: "3px 15px",
-              minWidth: 36,
-              textAlign: "center",
-              display: "inline-block"
-            }}
+            className={`agent-status-box ${key.toLowerCase()}`} // This is critical for colored borders
           >
             {agent[key] ?? 0}
           </div>
-
         ))}
       </div>
-    )
-}
+    )}
+  </div>
+))}
 
-
-
-
-                    </div>
-                  ))}
                 </div>
               </div>
             );
@@ -1211,8 +1190,8 @@ allDepartmentMemberNames.forEach((name) => {
     style={{
       position: "absolute",
       width: "100%",
-      height: 60,
-      fontSize: 10,
+      height: 150,
+      fontSize: 12,
       top: 50,
       left: 0,
       minWidth: 100,
@@ -1226,6 +1205,22 @@ allDepartmentMemberNames.forEach((name) => {
     tabIndex={-1}
     onMouseDown={e => e.preventDefault()} // keep open on click
   >
+    <label style={{ display: "flex", alignItems: "center", padding: "5px 0", cursor: "pointer" }}>
+  <input
+    type="checkbox"
+    checked={selectedAges.includes("thirteenDays")}
+    onChange={e => {
+      setSelectedAges(prev =>
+        e.target.checked
+          ? [...prev, "thirteenDays"]
+          : prev.filter(v => v !== "thirteenDays")
+      );
+    }}
+    style={{ marginRight: 8 }}
+  />
+  1 - 13 Days Tickets
+</label>
+
     <label style={{ display: "flex", alignItems: "center", padding: "5px 0", cursor: "pointer" }}>
       <input
         type="checkbox"
@@ -1290,10 +1285,12 @@ allDepartmentMemberNames.forEach((name) => {
             
           )}
         </div>
+        
            {selectedAges.length > 0 ? (
       <AgentTicketAgeTable
-        membersData={membersData}
+        membersData={filteredMembers}
         selectedAges={selectedAges}
+        selectedStatuses={selectedStatuses}
         onClose={() => setSelectedAges([])}
         showTimeDropdown={showTimeDropdown}
       />
