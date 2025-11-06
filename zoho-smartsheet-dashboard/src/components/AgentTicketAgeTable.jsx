@@ -3,25 +3,38 @@ import React, { useState } from 'react';
 export default function AgentTicketAgeTable({
   membersData,
   onClose,
-  selectedAges = ["sevenDays", "twoWeeks", "month"], // Show all by default
+  selectedAges = ["sevenDays", "twoWeeks", "month"],
+  selectedStatuses = [],
   showTimeDropdown
 }) {
   const [hoveredRowIndex, setHoveredRowIndex] = useState(null);
 
-  // Age columns config (add sevenDays)
   const ageColumns = [
-    { key: "sevenDays", label: "1-7 Days Tickets" },
-    { key: "twoWeeks", label: "14 - 30 Days Tickets" },
-    { key: "month", label: "30+ Days Tickets" }
-  ];
+              { key: "thirteenDays", label: "1-13 Days Tickets", ageProp: "BetweenOneAndThirteenDays" },
+              { key: "twoWeeks", label: "14 - 30 Days Tickets", ageProp: "BetweenTwoWeeksAndMonth" },
+              { key: "month", label: "30+ Days Tickets", ageProp: "OlderThanMonth" }
+            ];
+
   const visibleAgeColumns = ageColumns.filter(col => selectedAges.includes(col.key));
   const columnsToShow = [
     { key: "name", label: "Agent Name" },
     { key: "total", label: "Total Ticket Count" },
-    ...(visibleAgeColumns.length > 0 ? visibleAgeColumns : [ageColumns[0]])
+    ...visibleAgeColumns
   ];
-  
-  // Map rows, including the new 1-7 Days column
+
+  const statusPalette = {
+    open: "#bd2331",
+    hold: "#ffc107",
+    inProgress: "#8fc63d",
+    escalated: "#ef6724"
+  };
+
+  // Which statuses to show? If none picked, don't show mini-boxes
+  const statusKeys =
+    selectedStatuses && selectedStatuses.length > 0
+      ? selectedStatuses.map(st => st.value)
+      : [];
+
   const tableRows = membersData
     .map(agent => {
       const tickets = agent.tickets || {};
@@ -34,24 +47,23 @@ export default function AgentTicketAgeTable({
       return {
         name: agent.name,
         total,
-        sevenDays: agent.ticketsBetweenOneAndSevenDays || 0, // NEW COLUMN
-        twoWeeks: agent.ticketsBetweenTwoWeeksAndMonth || 0,
-        month: agent.ticketsOlderThanMonth || 0,
+        tickets
       };
     })
     .filter(row => row.total > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  // Styles
   const cellStyle3D = {
     padding: 14,
     fontWeight: 700,
     borderRadius: 12,
     background: 'linear-gradient(135deg, #23272f 60%, #15171a 100%)',
     color: '#f4f4f4',
-    borderTop: '2px solid #4070d6',  // blue
-    borderLeft: '2px solid #3a65ca', // blue
-    borderBottom: '2.5px solid #1c2a5f', // dark blue
-    borderRight: '2.5px solid #162158',   // dark blue
+    borderTop: '2px solid #4070d6',
+    borderLeft: '2px solid #3a65ca',
+    borderBottom: '2.5px solid #1c2a5f',
+    borderRight: '2.5px solid #162158',
     transition: 'background 0.18s',
     cursor: 'pointer'
   };
@@ -74,6 +86,24 @@ export default function AgentTicketAgeTable({
     borderRight: '2px solid #182345',
     borderRadius: '12px 12px 0 0'
   };
+
+  const miniBoxStyle = color => ({
+    background: "#232c48",
+    borderRadius: 13,
+    minWidth: 32,
+    minHeight: 44,
+    fontWeight: 900,
+    fontSize: 21,
+    color: "#fff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 4px",
+    position: "relative",
+    border: "2px solid #263256",
+    boxShadow: "0 2px 8px #1e448949",
+    borderTop: `5px solid ${color}`
+  });
 
   React.useEffect(() => {
     const handleDoubleClick = () => {
@@ -129,17 +159,49 @@ export default function AgentTicketAgeTable({
                   borderBottom: '2px solid #2b3243'
                 }}
               >
-                {columnsToShow.map(col => (
+                <td
+                  style={hoveredRowIndex === rowIndex
+                    ? { ...cellStyle3DHovered, textAlign: 'left' }
+                    : { ...cellStyle3D, textAlign: 'left' }
+                  }
+                  onMouseEnter={() => setHoveredRowIndex(rowIndex)}
+                  onMouseLeave={() => setHoveredRowIndex(null)}
+                >
+                  {row.name}
+                </td>
+                <td
+                  style={hoveredRowIndex === rowIndex
+                    ? { ...cellStyle3DHovered, textAlign: 'center' } // ticket total centered
+                    : { ...cellStyle3D, textAlign: 'center' }
+                  }
+                >
+                  {row.total}
+                </td>
+                {visibleAgeColumns.map(col => (
                   <td
                     key={col.key}
                     style={hoveredRowIndex === rowIndex
-                      ? { ...cellStyle3DHovered, textAlign: col.key === "name" ? 'left' : 'center' }
-                      : { ...cellStyle3D, textAlign: col.key === "name" ? 'left' : 'center' }
-                    }
-                    onMouseEnter={() => setHoveredRowIndex(rowIndex)}
-                    onMouseLeave={() => setHoveredRowIndex(null)}
-                  >
-                    {row[col.key]}
+                      ? { ...cellStyle3DHovered, textAlign: 'center' } // age counts centered
+                      : { ...cellStyle3D, textAlign: 'center' }
+                    }>
+                    {statusKeys.length === 0 ? (
+                      // No filter: show normal bucket sum
+                      <>
+                        {/* Sum of all buckets (matching your original logic) */}
+                        {(row.tickets['open' + col.ageProp] ?? 0) +
+                         (row.tickets['hold' + col.ageProp] ?? 0) +
+                         (row.tickets['inProgress' + col.ageProp] ?? 0)}
+                      </>
+                    ) : (
+                      // If one or more status keys, show mini status boxes only for selected
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        {statusKeys.map(status =>
+                          <div key={status} style={miniBoxStyle(statusPalette[status])}>
+                            {row.tickets[status + col.ageProp] ?? 0}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                 ))}
               </tr>
