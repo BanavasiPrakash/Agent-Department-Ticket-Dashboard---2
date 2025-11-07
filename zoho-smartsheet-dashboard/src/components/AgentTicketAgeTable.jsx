@@ -3,43 +3,71 @@ import React, { useState } from 'react';
 export default function AgentTicketAgeTable({
   membersData,
   onClose,
-  selectedAges = ["sevenDays", "twoWeeks", "month"], // Show all by default
-  showTimeDropdown
+  selectedAges = ["fifteenDays", "sixteenToThirty", "month"],
+  selectedStatuses = [],
+  showTimeDropdown,
+  selectedDepartmentId
 }) {
   const [hoveredRowIndex, setHoveredRowIndex] = useState(null);
 
-  // Age columns config (add sevenDays)
   const ageColumns = [
-    { key: "sevenDays", label: "1-7 Days Tickets" },
-    { key: "twoWeeks", label: "14 - 30 Days Tickets" },
-    { key: "month", label: "30+ Days Tickets" }
+    { key: "fifteenDays", label: "1-15 Days Tickets", ageProp: "BetweenOneAndFifteenDays" },
+    { key: "sixteenToThirty", label: "16-30 Days Tickets", ageProp: "BetweenSixteenAndThirtyDays" },
+    { key: "month", label: "30+ Days Tickets", ageProp: "OlderThanThirtyDays" }
   ];
+
   const visibleAgeColumns = ageColumns.filter(col => selectedAges.includes(col.key));
   const columnsToShow = [
     { key: "name", label: "Agent Name" },
     { key: "total", label: "Total Ticket Count" },
-    ...(visibleAgeColumns.length > 0 ? visibleAgeColumns : [ageColumns[0]])
+    ...visibleAgeColumns
   ];
-  
-  // Map rows, including the new 1-7 Days column
-  const tableRows = membersData
+
+  const statusPalette = {
+    open: "#bd2331",
+    hold: "#ffc107",
+    inProgress: "#8fc63d",
+    escalated: "#ef6724"
+  };
+
+  const statusKeys =
+    selectedStatuses && selectedStatuses.length > 0
+      ? selectedStatuses.map(st => st.value)
+      : [];
+
+  const tableRows = (membersData || [])
+    .filter(agent => {
+      if (selectedDepartmentId) {
+        // Show if any ticket in dept or any tickets at all, be lenient:
+        return (agent.departmentTicketCounts?.[selectedDepartmentId] || 0) > 0 ||
+               Object.values(agent.departmentAgingCounts?.[selectedDepartmentId] || {}).some(v => v > 0);
+      } else {
+        const t = agent.tickets || {};
+        return (t.open || 0) + (t.hold || 0) + (t.escalated || 0) + (t.unassigned || 0) + (t.inProgress || 0) > 0;
+      }
+    })
     .map(agent => {
-      const tickets = agent.tickets || {};
-      const total =
-        (tickets.open || 0) +
-        (tickets.hold || 0) +
-        (tickets.escalated || 0) +
-        (tickets.unassigned || 0) +
-        (tickets.inProgress || 0);
+      let agingCounts = {};
+      if (selectedDepartmentId) {
+        agingCounts = agent.departmentAgingCounts?.[selectedDepartmentId] || {};
+      } else {
+        agingCounts = agent.tickets || {};
+      }
+      // Sum all relevant aging buckets for total
+      const total = [
+        'open', 'hold', 'inProgress', 'escalated'
+      ].reduce((sum, status) => (
+        sum +
+        (agingCounts[`${status}BetweenOneAndFifteenDays`] || 0) +
+        (agingCounts[`${status}BetweenSixteenAndThirtyDays`] || 0) +
+        (agingCounts[`${status}OlderThanThirtyDays`] || 0)
+      ), 0);
       return {
         name: agent.name,
         total,
-        sevenDays: agent.ticketsBetweenOneAndSevenDays || 0, // NEW COLUMN
-        twoWeeks: agent.ticketsBetweenTwoWeeksAndMonth || 0,
-        month: agent.ticketsOlderThanMonth || 0,
+        agingCounts,
       };
     })
-    .filter(row => row.total > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const cellStyle3D = {
@@ -48,10 +76,10 @@ export default function AgentTicketAgeTable({
     borderRadius: 12,
     background: 'linear-gradient(135deg, #23272f 60%, #15171a 100%)',
     color: '#f4f4f4',
-    borderTop: '2px solid #4070d6',  // blue
-    borderLeft: '2px solid #3a65ca', // blue
-    borderBottom: '2.5px solid #1c2a5f', // dark blue
-    borderRight: '2.5px solid #162158',   // dark blue
+    borderTop: '2px solid #4070d6',
+    borderLeft: '2px solid #3a65ca',
+    borderBottom: '2.5px solid #1c2a5f',
+    borderRight: '2.5px solid #162158',
     transition: 'background 0.18s',
     cursor: 'pointer'
   };
@@ -74,6 +102,23 @@ export default function AgentTicketAgeTable({
     borderRight: '2px solid #182345',
     borderRadius: '12px 12px 0 0'
   };
+
+  const miniBoxStyle = color => ({
+    background: "#232c48",
+    borderRadius: 18,
+    minWidth: 32,
+    minHeight: 44,
+    fontWeight: 900,
+    fontSize: 21,
+    color: "white",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 4px",
+    position: "relative",
+    border: "2px solid #263256",
+    borderTop: `5px solid ${color}`
+  });
 
   React.useEffect(() => {
     const handleDoubleClick = () => {
@@ -129,17 +174,47 @@ export default function AgentTicketAgeTable({
                   borderBottom: '2px solid #2b3243'
                 }}
               >
-                {columnsToShow.map(col => (
+                <td
+                  style={hoveredRowIndex === rowIndex
+                    ? { ...cellStyle3DHovered, textAlign: 'left' }
+                    : { ...cellStyle3D, textAlign: 'left' }
+                  }
+                  onMouseEnter={() => setHoveredRowIndex(rowIndex)}
+                  onMouseLeave={() => setHoveredRowIndex(null)}
+                >
+                  {row.name}
+                </td>
+                <td
+                  style={hoveredRowIndex === rowIndex
+                    ? { ...cellStyle3DHovered, textAlign: 'center' }
+                    : { ...cellStyle3D, textAlign: 'center' }
+                  }
+                >
+                  {row.total}
+                </td>
+                {visibleAgeColumns.map(col => (
                   <td
                     key={col.key}
                     style={hoveredRowIndex === rowIndex
-                      ? { ...cellStyle3DHovered, textAlign: col.key === "name" ? 'left' : 'center' }
-                      : { ...cellStyle3D, textAlign: col.key === "name" ? 'left' : 'center' }
-                    }
-                    onMouseEnter={() => setHoveredRowIndex(rowIndex)}
-                    onMouseLeave={() => setHoveredRowIndex(null)}
-                  >
-                    {row[col.key]}
+                      ? { ...cellStyle3DHovered, textAlign: 'center' }
+                      : { ...cellStyle3D, textAlign: 'center' }
+                    }>
+                    {(statusKeys.length === 0 || (statusKeys.length === 1 && statusKeys[0] === "total")) ? (
+                      <>
+                        {(row.agingCounts['open' + col.ageProp] ?? 0)
+                          + (row.agingCounts['hold' + col.ageProp] ?? 0)
+                          + (row.agingCounts['inProgress' + col.ageProp] ?? 0)
+                          + (row.agingCounts['escalated' + col.ageProp] ?? 0)}
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        {statusKeys.filter(status => status !== "total").map(status =>
+                          <div key={status} style={miniBoxStyle(statusPalette[status])}>
+                            {row.agingCounts[status + col.ageProp] ?? 0}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                 ))}
               </tr>

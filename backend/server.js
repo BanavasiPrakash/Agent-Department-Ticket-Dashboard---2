@@ -162,6 +162,7 @@ async function getAllAgentsForDepartment(departmentId, accessToken) {
   return allAgents;
 }
 
+// ==== MAIN PATCHED ENDPOINT ====
 app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
   try {
     let departmentIds = [];
@@ -222,6 +223,10 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
     };
     latestUnassignedTicketIdMap["unassigned"] = null;
 
+    // === PATCH: departmentAgingCounts ===
+    const now = Date.now();
+    const userDeptAgingCounts = {};
+
     const allUnassignedTicketNumbers = [];
     tickets.forEach((ticket) => {
       const assigneeRaw =
@@ -241,9 +246,51 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
         };
         latestUnassignedTicketIdMap[assigneeId] = null;
       }
+      // New: per-user, per-department, per-age counts
+      if (!userDeptAgingCounts[assigneeId]) userDeptAgingCounts[assigneeId] = {};
+      const deptId = ticket.departmentId || "no_department";
+      if (!userDeptAgingCounts[assigneeId][deptId]) {
+        userDeptAgingCounts[assigneeId][deptId] = {
+          openBetweenOneAndFifteenDays: 0,
+          openBetweenSixteenAndThirtyDays: 0,
+          openOlderThanThirtyDays: 0,
+          holdBetweenOneAndFifteenDays: 0,
+          holdBetweenSixteenAndThirtyDays: 0,
+          holdOlderThanThirtyDays: 0,
+          inProgressBetweenOneAndFifteenDays: 0,
+          inProgressBetweenSixteenAndThirtyDays: 0,
+          inProgressOlderThanThirtyDays: 0,
+          escalatedBetweenOneAndFifteenDays: 0,
+          escalatedBetweenSixteenAndThirtyDays: 0,
+          escalatedOlderThanThirtyDays: 0,
+        };
+      }
       const rawStatus = (ticket.status || "").toLowerCase();
       const normalizedStatus = statusMap[rawStatus] || "unassigned";
       const isEscalated = ticket.isEscalated === true || String(ticket.escalated).toLowerCase() === "true";
+      const ageDays = ticket.createdTime ? (now - new Date(ticket.createdTime)) / (1000 * 60 * 60 * 24) : null;
+
+      if (ageDays !== null) {
+        const agingCounts = userDeptAgingCounts[assigneeId][deptId];
+        if (normalizedStatus === "open") {
+          if (ageDays >= 0 && ageDays < 16) agingCounts.openBetweenOneAndFifteenDays++;
+          else if (ageDays >= 16 && ageDays < 31) agingCounts.openBetweenSixteenAndThirtyDays++;
+          else if (ageDays > 30) agingCounts.openOlderThanThirtyDays++;
+        } else if (normalizedStatus === "hold") {
+          if (ageDays >= 0 && ageDays < 16) agingCounts.holdBetweenOneAndFifteenDays++;
+          else if (ageDays >= 16 && ageDays < 31) agingCounts.holdBetweenSixteenAndThirtyDays++;
+          else if (ageDays > 30) agingCounts.holdOlderThanThirtyDays++;
+        } else if (normalizedStatus === "inProgress") {
+          if (ageDays >= 0 && ageDays < 16) agingCounts.inProgressBetweenOneAndFifteenDays++;
+          else if (ageDays >= 16 && ageDays < 31) agingCounts.inProgressBetweenSixteenAndThirtyDays++;
+          else if (ageDays > 30) agingCounts.inProgressOlderThanThirtyDays++;
+        } else if (normalizedStatus === "escalated") {
+          if (ageDays >= 0 && ageDays < 16) agingCounts.escalatedBetweenOneAndFifteenDays++;
+          else if (ageDays >= 16 && ageDays < 31) agingCounts.escalatedBetweenSixteenAndThirtyDays++;
+          else if (ageDays > 30) agingCounts.escalatedOlderThanThirtyDays++;
+        }
+      }
+      // ==== (patch ends) ====
       if (isUnassignedAssignee && normalizedStatus !== "closed") {
         const ticketNumber = ticket.ticketNumber || ticket.id;
         if (ticketNumber) allUnassignedTicketNumbers.push(ticketNumber);
@@ -270,7 +317,7 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
       displayName: "Unassigned",
     });
 
-    const now = Date.now();
+    const now2 = Date.now(); // For stats, new var so no accidental mix
     const members = users
       .filter((user) => user.id in ticketStatusCountMap)
       .map((user) => {
@@ -286,38 +333,48 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
         }
 
         const agentTickets = tickets.filter(
-          (t) =>
-            String(t.assigneeId) === String(user.id) &&
-            t.status &&
-            t.status.toLowerCase() !== "closed"
+          (t) => String(t.assigneeId) === String(user.id) && t.status && t.status.toLowerCase() !== "closed"
         );
-        const totalTicketCount = agentTickets.length;
-        const ticketsOlderThanWeek = agentTickets.filter((t) => {
-          if (!t.createdTime) return false;
-          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-          return ageDays > 7;
-        }).length;
-        const ticketsOlderThanMonth = agentTickets.filter((t) => {
-          if (!t.createdTime) return false;
-          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-          return ageDays > 30;
-        }).length;
-        const ticketsBetweenTwoWeeksAndMonth = agentTickets.filter((t) => {
-          if (!t.createdTime) return false;
-          const ageDays = (now - new Date(t.createdTime)) / (1000 * 60 * 60 * 24);
-          return ageDays >= 14 && ageDays < 30;
-        }).length;
+        const statusKeys = ["open", "hold", "inProgress", "escalated"];
+        let perStatusAge = {};
+        statusKeys.forEach(status => {
+          perStatusAge[`${status}BetweenOneAndFifteenDays`] = agentTickets.filter(t => {
+            const rawStatus = (t.status || "").toLowerCase();
+            const normalized = statusMap[rawStatus] || rawStatus;
+            const ageDays = t.createdTime ? (now2 - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+            return normalized === status && ageDays !== null && ageDays < 16 && ageDays >= 0;
+          }).length;
+          perStatusAge[`${status}BetweenSixteenAndThirtyDays`] = agentTickets.filter(t => {
+            const rawStatus = (t.status || "").toLowerCase();
+            const normalized = statusMap[rawStatus] || rawStatus;
+            const ageDays = t.createdTime ? (now2 - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+            return normalized === status && ageDays !== null && ageDays >= 16 && ageDays < 31;
+          }).length;
+          perStatusAge[`${status}OlderThanThirtyDays`] = agentTickets.filter(t => {
+            const rawStatus = (t.status || "").toLowerCase();
+            const normalized = statusMap[rawStatus] || rawStatus;
+            const ageDays = t.createdTime ? (now2 - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+            return normalized === status && ageDays !== null && ageDays > 30;
+          }).length;
+        });
+
+        const departmentTicketCounts = {};
+        departmentIds.forEach(depId => {
+          departmentTicketCounts[depId] = tickets.filter(
+            (t) => String(t.assigneeId) === String(user.id) &&
+                  t.departmentId === depId &&
+                  t.status && t.status.toLowerCase() !== "closed"
+          ).length;
+        });
 
         return {
           id: user.id,
           name: candidateName,
           departmentIds,
-          tickets: ticketStatusCountMap[user.id],
+          tickets: { ...ticketStatusCountMap[user.id], ...perStatusAge },
           latestUnassignedTicketId: latestUnassignedTicketIdMap[user.id] || null,
-          ticketsOlderThanWeek,
-          ticketsOlderThanMonth,
-          ticketsBetweenTwoWeeksAndMonth,
-          totalTicketCount,
+          departmentTicketCounts,
+          departmentAgingCounts: userDeptAgingCounts[user.id] || {},
         };
       });
 
@@ -335,6 +392,7 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch assignee ticket counts" });
   }
 });
+// ==== END MAIN PATCH ====
 
 app.get("/api/zoho-departments", async (req, res) => {
   try {
@@ -396,7 +454,7 @@ app.get("/api/zoho-department-ticket-counts", async (req, res) => {
         } else if (normalizedStatus === "closed") {
           ticketStatusCountMap[deptId].closed++;
         } else if (normalizedStatus === "inProgress") {
-          ticketStatusCountMap[deptId].inProgress++;
+          ticketStatusCountMap[depId].inProgress++;
         }
       }
     });
