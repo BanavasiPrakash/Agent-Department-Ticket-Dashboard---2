@@ -333,14 +333,15 @@ const filteredMembers =
         (m) =>
           Array.isArray(m.departmentIds) &&
           m.departmentIds.includes(dept.id) &&
-          (m.tickets?.open || 0) + (m.tickets?.hold || 0) + (m.tickets?.escalated || 0) + (m.tickets?.unassigned || 0) + (m.tickets?.inProgress || 0) >
-            0
+          // Only show agents with at least 1 ticket in this department
+          (m.departmentTicketCounts?.[dept.id] || 0) > 0
       )
       .map((m) => m.displayName || m.fullName || m.name || m.email || "Unknown")
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); // <-- ADD THIS LINE
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   });
   return map;
 }, [departmentsList, membersData]);
+
 
 
   useEffect(() => {
@@ -482,7 +483,7 @@ const filteredMembers =
 // ];
 
   
-  const showLegendTotal = selectedStatuses.some((s) => s.value === "total");
+const showLegendTotal = selectedStatuses.some((s) => s.value === "total");
 const currentTicketNumber =
   unassignedTicketNumbers.length > 0
     ? unassignedTicketNumbers[currentUnassignedIndex].toString().padStart(5, "0")
@@ -688,12 +689,13 @@ if (selectedDepartments.length > 0 && currentDepartments.length > 0) {
             });
 
             const deptSelectedAgents = selectedDeptAgents[allowedDeptId] || [];
-            const agentsToShow =
-              deptSelectedAgents.length > 0
-                ? Array.from(uniqueAgentsMap.values()).filter(agent =>
-                    deptSelectedAgents.includes(agent.name)
-                  )
-                : Array.from(uniqueAgentsMap.values()).filter(agent => agent.totalTickets > 0);
+const agentsToShow =
+  deptSelectedAgents.length > 0
+    ? Array.from(uniqueAgentsMap.values()).filter(agent =>
+        deptSelectedAgents.includes(agent.name)
+      )
+    : Array.from(uniqueAgentsMap.values()).filter(agent => agent.totalTickets > 0);
+
 
             // Alphabetical sorting added here
             const sortedAgentsToShow = agentsToShow.slice().sort((a, b) =>
@@ -1286,6 +1288,9 @@ if (selectedDepartments.length > 0 && currentDepartments.length > 0) {
   onClose={() => setSelectedAges([])}
   showTimeDropdown={showTimeDropdown}
   selectedDepartmentId={currentDepartments && currentDepartments[0]?.value} // or your correct variable!
+  selectedAgentNames={
+    currentDepartments && selectedDeptAgents[currentDepartments[0]?.value] || []
+  }
 />
 
     ) : (
@@ -1298,3 +1303,4 @@ if (selectedDepartments.length > 0 && currentDepartments.length > 0) {
 }
 
 export default TicketDashboard;
+///////////////////

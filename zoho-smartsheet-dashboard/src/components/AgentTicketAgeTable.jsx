@@ -6,7 +6,8 @@ export default function AgentTicketAgeTable({
   selectedAges = ["fifteenDays", "sixteenToThirty", "month"],
   selectedStatuses = [],
   showTimeDropdown,
-  selectedDepartmentId
+  selectedDepartmentId,
+  selectedAgentNames = []
 }) {
   const [hoveredRowIndex, setHoveredRowIndex] = useState(null);
 
@@ -38,9 +39,14 @@ export default function AgentTicketAgeTable({
   const tableRows = (membersData || [])
     .filter(agent => {
       if (selectedDepartmentId) {
-        // Show if any ticket in dept or any tickets at all, be lenient:
-        return (agent.departmentTicketCounts?.[selectedDepartmentId] || 0) > 0 ||
-               Object.values(agent.departmentAgingCounts?.[selectedDepartmentId] || {}).some(v => v > 0);
+        const agentHasTickets =
+          (agent.departmentTicketCounts?.[selectedDepartmentId] || 0) > 0 ||
+          Object.values(agent.departmentAgingCounts?.[selectedDepartmentId] || {}).some(v => v > 0);
+        // If any agents are individually selected, only show those
+        const nameMatch =
+          !selectedAgentNames.length ||
+          selectedAgentNames.includes(agent.name.trim());
+        return agentHasTickets && nameMatch;
       } else {
         const t = agent.tickets || {};
         return (t.open || 0) + (t.hold || 0) + (t.escalated || 0) + (t.unassigned || 0) + (t.inProgress || 0) > 0;
