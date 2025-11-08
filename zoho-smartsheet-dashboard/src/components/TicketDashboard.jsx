@@ -654,22 +654,33 @@ if (selectedDepartments.length > 0 && currentDepartments.length > 0) {
 
             // For each agent in departmentMembersRows, always set all per-status fields
             departmentMembersRows.forEach((agent) => {
-              const normalizedName = agent.name.trim().toLowerCase();
-              const totalTickets =
-                (agent.departmentTicketCounts && agent.departmentTicketCounts[allowedDeptId]) || 0;
+  const normalizedName = agent.name.trim().toLowerCase();
+  const totalTickets =
+    (agent.departmentTicketCounts && agent.departmentTicketCounts[allowedDeptId]) || 0;
+  // NEW: Use department-scoped per-status counts, fallback to 0
+  const deptAging =
+    (agent.departmentAgingCounts && agent.departmentAgingCounts[allowedDeptId]) || {};
 
-              // Always save with status fields (whether new or overwriting)
-              uniqueAgentsMap.set(normalizedName, {
-                id: agent.id,
-                name: agent.name.trim(),
-                open: agent.tickets?.open || 0,
-                hold: agent.tickets?.hold || 0,
-                inProgress: agent.tickets?.inProgress || 0,
-                escalated: agent.tickets?.escalated || 0,
-                unassigned: agent.tickets?.unassigned || 0,
-                totalTickets: totalTickets,
-              });
-            });
+  uniqueAgentsMap.set(normalizedName, {
+    id: agent.id,
+    name: agent.name.trim(),
+    open: deptAging.openBetweenOneAndFifteenDays +
+          deptAging.openBetweenSixteenAndThirtyDays +
+          deptAging.openOlderThanThirtyDays || 0,
+    hold: deptAging.holdBetweenOneAndFifteenDays +
+          deptAging.holdBetweenSixteenAndThirtyDays +
+          deptAging.holdOlderThanThirtyDays || 0,
+    inProgress: deptAging.inProgressBetweenOneAndFifteenDays +
+                deptAging.inProgressBetweenSixteenAndThirtyDays +
+                deptAging.inProgressOlderThanThirtyDays || 0,
+    escalated: deptAging.escalatedBetweenOneAndFifteenDays +
+               deptAging.escalatedBetweenSixteenAndThirtyDays +
+               deptAging.escalatedOlderThanThirtyDays || 0,
+    unassigned: agent.tickets?.unassigned || 0, // If you ever need this per dept, also sum from per-department data!
+    totalTickets: totalTickets,
+  });
+});
+
 
             // For fallback department names, add only if not already present
             allDepartmentMemberNames.forEach((name) => {
