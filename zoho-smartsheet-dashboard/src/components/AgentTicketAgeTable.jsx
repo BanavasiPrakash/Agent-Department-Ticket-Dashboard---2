@@ -19,6 +19,7 @@ export default function AgentTicketAgeTable({
 
   const visibleAgeColumns = ageColumns.filter(col => selectedAges.includes(col.key));
   const columnsToShow = [
+    { key: "serial", label: "SI. NO." },
     { key: "name", label: "Agent Name" },
     { key: "total", label: "Total Ticket Count" },
     ...visibleAgeColumns
@@ -42,7 +43,6 @@ export default function AgentTicketAgeTable({
         const agentHasTickets =
           (agent.departmentTicketCounts?.[selectedDepartmentId] || 0) > 0 ||
           Object.values(agent.departmentAgingCounts?.[selectedDepartmentId] || {}).some(v => v > 0);
-        // If any agents are individually selected, only show those
         const nameMatch =
           !selectedAgentNames.length ||
           selectedAgentNames.includes(agent.name.trim());
@@ -59,7 +59,6 @@ export default function AgentTicketAgeTable({
       } else {
         agingCounts = agent.tickets || {};
       }
-      // Sum all relevant aging buckets for total
       const total = [
         'open', 'hold', 'inProgress', 'escalated'
       ].reduce((sum, status) => (
@@ -82,17 +81,31 @@ export default function AgentTicketAgeTable({
     borderRadius: 12,
     background: 'linear-gradient(135deg, #23272f 60%, #15171a 100%)',
     color: '#f4f4f4',
-    borderTop: '2px solid #4070d6',
-    borderLeft: '2px solid #3a65ca',
-    borderBottom: '2.5px solid #1c2a5f',
-    borderRight: '2.5px solid #162158',
+    borderTop: '2px solid #1E4489',
+    borderLeft: '2px solid #1E4489',
+    borderBottom: '2.5px solid #1E4489',
+    borderRight: '2.5px solid #1E4489',
     transition: 'background 0.18s',
     cursor: 'pointer'
   };
 
+  // Serial number column style: narrow width
+  const serialHeaderStyle = {
+    ...cellStyle3D,
+    width: 30,
+    minWidth: 30,
+    maxWidth: 40,
+    textAlign: 'center',
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
+    fontWeight: 900,
+    background: 'linear-gradient(135deg, #1E4489 70%, #1E4489 100%)'
+  };
+
   const cellStyle3DHovered = {
     ...cellStyle3D,
-    background: 'linear-gradient(135deg, #2446a3 60%, #293956 100%)',
+    background: 'linear-gradient(135deg, #1E4489 60%, #1E4489 100%)',
     color: '#fff'
   };
 
@@ -100,13 +113,16 @@ export default function AgentTicketAgeTable({
     padding: 14,
     textAlign: 'center',
     fontWeight: 900,
-    background: 'linear-gradient(135deg, #3752a6 70%, #23355a 100%)',
+    background: 'linear-gradient(135deg, #1E4489 70%, #1E4489 100%)',
     color: '#fff',
     borderTop: '2px solid #5375ce',
     borderLeft: '2px solid #6d90e5',
     borderBottom: '2px solid #1e2950',
     borderRight: '2px solid #182345',
-    borderRadius: '12px 12px 0 0'
+    borderRadius: '12px 12px 0 0',
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
   };
 
   const miniBoxStyle = color => ({
@@ -135,18 +151,32 @@ export default function AgentTicketAgeTable({
   }, [onClose]);
 
   return (
-    <div style={{ margin: '24px auto', maxWidth: 1400, position: 'relative' }}>
+    <div
+      className="no-scrollbar"
+      style={{
+        margin: '24px auto',
+        maxWidth: 1400,
+        position: 'relative',
+        maxHeight:549,
+        overflowY: 'auto',
+        borderRadius: 16,
+        border: '2px solid #32406b',
+        background: '#16171a'
+      }}
+    >
       <table style={{
         width: '100%',
         borderCollapse: 'separate',
         borderRadius: 16,
-        border: '2px solid #32406b',
         fontSize: 18
       }}>
         <thead>
           <tr>
-            {columnsToShow.map(col => (
-              <th key={col.key} style={headerStyle3D}>
+            {columnsToShow.map((col, colIdx) => (
+              <th
+                key={col.key}
+                style={col.key === "serial" ? serialHeaderStyle : headerStyle3D}
+              >
                 {col.label}
               </th>
             ))}
@@ -158,7 +188,7 @@ export default function AgentTicketAgeTable({
               <td colSpan={columnsToShow.length} style={{
                 textAlign: 'center',
                 padding: 28,
-                color: '#dedede',
+                color: 'WHITE',
                 fontSize: 19,
                 background: 'linear-gradient(110deg, #181b26 80%, #16171a 100%)',
                 borderRadius: 14
@@ -180,6 +210,21 @@ export default function AgentTicketAgeTable({
                   borderBottom: '2px solid #2b3243'
                 }}
               >
+                <td
+                  style={{
+                    ...(
+                      hoveredRowIndex === rowIndex
+                        ? { ...cellStyle3DHovered }
+                        : { ...cellStyle3D }
+                    ),
+                    width: 30,
+                    minWidth: 30,
+                    maxWidth: 40,
+                    textAlign: 'center'
+                  }}
+                >
+                  {rowIndex + 1}
+                </td>
                 <td
                   style={hoveredRowIndex === rowIndex
                     ? { ...cellStyle3DHovered, textAlign: 'left' }
