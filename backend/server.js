@@ -1,16 +1,15 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-const Bottleneck = require("bottleneck"); // Rate limiter to avoid throttling errors from Zoho APIs
-const axiosRetry = require("axios-retry").default; // Retry failed axios requests
+const Bottleneck = require("bottleneck");
+const axiosRetry = require("axios-retry").default;
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors()); // Enable CORS for frontend calls
-app.use(express.json()); // Parse JSON request bodies
+app.use(cors());
+app.use(express.json());
 
-// Set Content Security Policy for allowed connect sources (API servers)
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
@@ -19,19 +18,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// OAuth credentials for Zoho
 const clientId = "1000.VEPAX9T8TKDWJZZD95XT6NN52PRPQY";
 const clientSecret = "acca291b89430180ced19660cd28ad8ce1e4bec6e8";
 const refreshToken = "1000.465100d543b8d9471507bdf0b0263414.608f3f3817d11b09f142fd29810cca6f";
 
-// Cache access token & expiry to reuse before re-fetching
 let cachedAccessToken = null;
 let accessTokenExpiry = null;
-
-// Bottleneck limiter to delay requests to Zoho to avoid rate limits (1 request per 1100ms)
 const limiter = new Bottleneck({ minTime: 1100 });
 
-// Configure axios-retry to retry failed requests on 429 or 5xx errors
 axiosRetry(axios, {
   retries: 4,
   retryDelay: axiosRetry.exponentialDelay,
@@ -39,7 +33,6 @@ axiosRetry(axios, {
     error.response && (error.response.status === 429 || error.response.status >= 500),
 });
 
-// List of departments (hardcoded for this app)
 const departmentList = [
   { id: "634846000000006907", name: "IT Support" },
   { id: "634846000000334045", name: "Wescon" },
@@ -50,7 +43,6 @@ const departmentList = [
   { id: "634846000054190373", name: "PLM or IoT & CAD Support" },
 ];
 
-// Get OAuth access token, using cache to reduce requests
 async function getAccessToken() {
   const now = Date.now();
   if (cachedAccessToken && accessTokenExpiry && now < accessTokenExpiry) {
@@ -67,11 +59,10 @@ async function getAccessToken() {
     { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
   );
   cachedAccessToken = response.data.access_token;
-  accessTokenExpiry = now + (response.data.expires_in - 60) * 1000; // Subtract 60 seconds buffer
+  accessTokenExpiry = now + (response.data.expires_in - 60) * 1000;
   return cachedAccessToken;
 }
 
-// Fetch all tickets, supports pagination and filtering by departmentIds and agentId
 async function fetchAllTickets(accessToken, departmentIds = [], agentId = null) {
   let from = 1,
     limit = 100,
@@ -99,7 +90,6 @@ async function fetchAllTickets(accessToken, departmentIds = [], agentId = null) 
   return allTickets;
 }
 
-// Fetch all users (agents), with pagination
 async function fetchAllUsers(accessToken) {
   let from = 1,
     limit = 100,
@@ -118,7 +108,6 @@ async function fetchAllUsers(accessToken) {
   return allUsers;
 }
 
-// Fetch specific users by IDs; used to fetch missing users not in initial fetch
 async function fetchUsersByIds(accessToken, ids) {
   const users = [];
   for (const id of ids) {
@@ -134,18 +123,18 @@ async function fetchUsersByIds(accessToken, ids) {
   return users;
 }
 
-// Map to normalize Zoho ticket statuses to our keys
+// UPDATED: Now includes "escalated" mapping
 const statusMap = {
   open: "open",
   "on hold": "hold",
   hold: "hold",
   closed: "closed",
   "in progress": "inProgress",
+  escalated: "escalated", // <-- Key fix
   unassigned: "unassigned",
   "": "unassigned",
 };
 
-// Fetch all agents for a given department with pagination
 async function getAllAgentsForDepartment(departmentId, accessToken) {
   const limit = 200;
   let from = 1;
@@ -165,10 +154,8 @@ async function getAllAgentsForDepartment(departmentId, accessToken) {
   return allAgents;
 }
 
-// API endpoint: Get assignees with their ticket counts and aging divided by department and status
 app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
   try {
-    // Parse departmentIds query parameter
     let departmentIds = [];
     if (req.query.departmentIds) {
       try {
@@ -179,16 +166,12 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
     }
     const agentId = req.query.agentId || null;
 
-    // Get access token
     const accessToken = await getAccessToken();
-
-    // Fetch all users and tickets with filters
     let users = await fetchAllUsers(accessToken);
     const tickets = await fetchAllTickets(accessToken, departmentIds, agentId);
     const departmentsResp = { data: { data: departmentList } };
     const allDepartments = departmentsResp.data.data || [];
 
-    // Map department ID to agent names currently assigned
     const deptAgentNameMap = {};
     for (const dep of allDepartments) {
       let agentNames = [];
@@ -201,7 +184,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
       deptAgentNameMap[dep.id] = agentNames;
     }
 
-    // Handle missing users not returned in initial user fetch but found in tickets
     const allAssigneeIds = new Set(tickets.map((t) => t.assigneeId).filter(Boolean));
     const knownUserIds = new Set(users.map((u) => u.id));
     const missingUserIds = Array.from(allAssigneeIds).filter((id) => !knownUserIds.has(id));
@@ -210,7 +192,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
       users = users.concat(missingUsers);
     }
 
-    // Initialize tracking objects for ticket counts and latest unassigned ticket IDs by user
     const ticketStatusCountMap = {},
       latestUnassignedTicketIdMap = {};
     users.forEach((user) => {
@@ -239,7 +220,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
 
     const allUnassignedTicketNumbers = [];
 
-    // Loop over all tickets and categorize by user, department, status, and age bucket
     tickets.forEach((ticket) => {
       const assigneeRaw = ticket.assigneeId === undefined || ticket.assigneeId === null ? "" : ticket.assigneeId.toString().toLowerCase();
       const isUnassignedAssignee = assigneeRaw === "" || assigneeRaw === "none" || assigneeRaw === "null";
@@ -283,17 +263,40 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
           escalatedBetweenSixteenAndThirtyDaysTickets: [],
           escalatedOlderThanThirtyDaysCount: 0,
           escalatedOlderThanThirtyDaysTickets: [],
+          openBetweenOneAndSevenDaysTickets: [],
+          openBetweenEightAndFifteenDaysTickets: [],
+          openOlderThanFifteenDaysTickets: [],
+          holdBetweenOneAndSevenDaysTickets: [],
+          holdBetweenEightAndFifteenDaysTickets: [],
+          holdOlderThanFifteenDaysTickets: [],
+          inProgressBetweenOneAndSevenDaysTickets: [],
+          inProgressBetweenEightAndFifteenDaysTickets: [],
+          inProgressOlderThanFifteenDaysTickets: [],
+          escalatedBetweenOneAndSevenDaysTickets: [],
+          escalatedBetweenEightAndFifteenDaysTickets: [],
+          escalatedOlderThanFifteenDaysTickets: [],
         };
       }
       const rawStatus = (ticket.status || "").toLowerCase();
       const normalizedStatus = statusMap[rawStatus] || "unassigned";
       const isEscalated = ticket.isEscalated === true || String(ticket.escalated).toLowerCase() === "true";
       const ageDays = ticket.createdTime ? (now - new Date(ticket.createdTime)) / (1000 * 60 * 60 * 24) : null;
+      const agingCounts = userDeptAgingCounts[assigneeId][deptId];
+      const ticketNumber = ticket.ticketNumber || ticket.id;
 
-      // Bucket tickets by status and age ranges, populate counts and arrays
+      // Populate both new and old buckets:
       if (ageDays !== null) {
-        const agingCounts = userDeptAgingCounts[assigneeId][deptId];
-        const ticketNumber = ticket.ticketNumber || ticket.id;
+        // New buckets (1–7, 8–15, 15+)
+        if (["open", "hold", "inProgress", "escalated"].includes(normalizedStatus)) {
+          if (ageDays >= 0 && ageDays < 8) {
+            agingCounts[normalizedStatus + "BetweenOneAndSevenDaysTickets"].push(ticketNumber);
+          } else if (ageDays >= 8 && ageDays < 16) {
+            agingCounts[normalizedStatus + "BetweenEightAndFifteenDaysTickets"].push(ticketNumber);
+          } else if (ageDays >= 16) {
+            agingCounts[normalizedStatus + "OlderThanFifteenDaysTickets"].push(ticketNumber);
+          }
+        }
+        // Old buckets (1–15, 16–30, 30+)
         if (normalizedStatus === "open") {
           if (ageDays >= 0 && ageDays < 16) {
             agingCounts.openBetweenOneAndFifteenDaysCount++;
@@ -340,10 +343,7 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
           }
         }
       }
-
-      // Track global unassigned ticket numbers and latest ticketId
       if (isUnassignedAssignee && normalizedStatus !== "closed") {
-        const ticketNumber = ticket.ticketNumber || ticket.id;
         if (ticketNumber) allUnassignedTicketNumbers.push(ticketNumber);
         const currentLatest = latestUnassignedTicketIdMap[assigneeId];
         if (
@@ -353,18 +353,16 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
         )
           latestUnassignedTicketIdMap[assigneeId] = ticketNumber;
       }
-
-      // Update ticketStatusCountMap based on assigned or escalated statuses (skip closed for unassigned)
       if (isUnassignedAssignee && normalizedStatus === "closed") return;
       if (isUnassignedAssignee) ticketStatusCountMap["unassigned"].unassigned++;
-      else if (normalizedStatus === "unassigned" || isEscalated) ticketStatusCountMap[assigneeId].escalated++;
+      // UPDATED: Now counts escalated correctly for agents
+      else if (normalizedStatus === "escalated" || isEscalated) ticketStatusCountMap[assigneeId].escalated++;
       else if (normalizedStatus === "open") ticketStatusCountMap[assigneeId].open++;
       else if (normalizedStatus === "hold") ticketStatusCountMap[assigneeId].hold++;
       else if (normalizedStatus === "closed") ticketStatusCountMap[assigneeId].closed++;
       else if (normalizedStatus === "inProgress") ticketStatusCountMap[assigneeId].inProgress++;
     });
 
-    // Add unassigned user entry to user list
     users.push({
       id: "unassigned",
       fullName: "Unassigned",
@@ -373,7 +371,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
 
     const now2 = Date.now();
 
-    // Process all users into a final members list including all ticket counts and aging counts
     const members = users
       .filter((user) => user.id in ticketStatusCountMap)
       .map((user) => {
@@ -387,15 +384,30 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
             departmentIds.push(dep.id);
           }
         }
-
-        // Filter tickets assigned to user for status and age bucket calculation
         const agentTickets = tickets.filter(
           (t) => String(t.assigneeId) === String(user.id) && t.status && t.status.toLowerCase() !== "closed"
         );
         const statusKeys = ["open", "hold", "inProgress", "escalated"];
         let perStatusAge = {};
-        // Count tickets per status per age bucket
         statusKeys.forEach((status) => {
+          perStatusAge[`${status}BetweenOneAndSevenDays`] = agentTickets.filter((t) => {
+            const rawStatus = (t.status || "").toLowerCase();
+            const normalized = statusMap[rawStatus] || rawStatus;
+            const ageDays = t.createdTime ? (now2 - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+            return normalized === status && ageDays !== null && ageDays < 8 && ageDays >= 0;
+          }).length;
+          perStatusAge[`${status}BetweenEightAndFifteenDays`] = agentTickets.filter((t) => {
+            const rawStatus = (t.status || "").toLowerCase();
+            const normalized = statusMap[rawStatus] || rawStatus;
+            const ageDays = t.createdTime ? (now2 - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+            return normalized === status && ageDays !== null && ageDays >= 8 && ageDays < 16;
+          }).length;
+          perStatusAge[`${status}OlderThanFifteenDays`] = agentTickets.filter((t) => {
+            const rawStatus = (t.status || "").toLowerCase();
+            const normalized = statusMap[rawStatus] || rawStatus;
+            const ageDays = t.createdTime ? (now2 - new Date(t.createdTime)) / (1000 * 60 * 60 * 24) : null;
+            return normalized === status && ageDays !== null && ageDays >= 16;
+          }).length;
           perStatusAge[`${status}BetweenOneAndFifteenDays`] = agentTickets.filter((t) => {
             const rawStatus = (t.status || "").toLowerCase();
             const normalized = statusMap[rawStatus] || rawStatus;
@@ -415,8 +427,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
             return normalized === status && ageDays !== null && ageDays > 30;
           }).length;
         });
-
-        // Calculate total ticket count per department for this user
         const departmentTicketCounts = {};
         departmentIds.forEach((depId) => {
           departmentTicketCounts[depId] = tickets.filter(
@@ -427,8 +437,6 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
               t.status.toLowerCase() !== "closed"
           ).length;
         });
-
-        // Return user data with ticket counts & aging summary
         return {
           id: user.id,
           name: candidateName,
@@ -440,7 +448,41 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
         };
       });
 
-    // Send JSON response including all members and departments metadata
+    const departmentAgeBuckets = departmentList.map(dep => {
+      let count_1_7 = 0, count_8_15 = 0, count_15plus = 0, total = 0;
+      Object.values(userDeptAgingCounts).forEach(agentDeptCounts => {
+        const agingCounts = agentDeptCounts[dep.id];
+        if (agingCounts) {
+          count_1_7 +=
+            (agingCounts.openBetweenOneAndSevenDaysTickets.length || 0) +
+            (agingCounts.holdBetweenOneAndSevenDaysTickets.length || 0) +
+            (agingCounts.inProgressBetweenOneAndSevenDaysTickets.length || 0) +
+            (agingCounts.escalatedBetweenOneAndSevenDaysTickets.length || 0);
+          count_8_15 +=
+            (agingCounts.openBetweenEightAndFifteenDaysTickets.length || 0) +
+            (agingCounts.holdBetweenEightAndFifteenDaysTickets.length || 0) +
+            (agingCounts.inProgressBetweenEightAndFifteenDaysTickets.length || 0) +
+            (agingCounts.escalatedBetweenEightAndFifteenDaysTickets.length || 0);
+          count_15plus +=
+            (agingCounts.openOlderThanFifteenDaysTickets.length || 0) +
+            (agingCounts.holdOlderThanFifteenDaysTickets.length || 0) +
+            (agingCounts.inProgressOlderThanFifteenDaysTickets.length || 0) +
+            (agingCounts.escalatedOlderThanFifteenDaysTickets.length || 0);
+          total += (
+            count_1_7 + count_8_15 + count_15plus
+          );
+        }
+      });
+      return {
+        departmentId: dep.id,
+        departmentName: dep.name,
+        count_1_7,
+        count_8_15,
+        count_15plus,
+        total
+      };
+    });
+
     res.json({
       members,
       unassignedTicketNumbers: allUnassignedTicketNumbers,
@@ -450,13 +492,13 @@ app.get("/api/zoho-assignees-with-ticket-counts", async (req, res) => {
         description: dep.description,
         agents: deptAgentNameMap[dep.id],
       })),
+      departmentAgeBuckets
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch assignee ticket counts" });
   }
 });
 
-// Endpoint to fetch all departments and users mapped to each department
 app.get("/api/zoho-departments", async (req, res) => {
   try {
     const accessToken = await getAccessToken();
@@ -485,7 +527,6 @@ app.get("/api/zoho-departments", async (req, res) => {
   }
 });
 
-// Endpoint to get ticket counts per status for each department (summary)
 app.get("/api/zoho-department-ticket-counts", async (req, res) => {
   try {
     const accessToken = await getAccessToken();
@@ -509,7 +550,7 @@ app.get("/api/zoho-department-ticket-counts", async (req, res) => {
         const isEscalated = ticket.isEscalated === true || String(ticket.escalated).toLowerCase() === "true";
         if ((!ticket.assigneeId || ["null", "none", null].includes(ticket.assigneeId)) && normalizedStatus !== "closed") {
           ticketStatusCountMap[deptId].unassigned++;
-        } else if (normalizedStatus === "unassigned" || isEscalated) {
+        } else if (normalizedStatus === "escalated" || isEscalated) {
           ticketStatusCountMap[deptId].escalated++;
         } else if (normalizedStatus === "open") {
           ticketStatusCountMap[deptId].open++;
@@ -518,7 +559,7 @@ app.get("/api/zoho-department-ticket-counts", async (req, res) => {
         } else if (normalizedStatus === "closed") {
           ticketStatusCountMap[deptId].closed++;
         } else if (normalizedStatus === "inProgress") {
-          ticketStatusCountMap[depId].inProgress++;
+          ticketStatusCountMap[deptId].inProgress++;
         }
       }
     });
@@ -540,7 +581,6 @@ app.get("/api/zoho-department-ticket-counts", async (req, res) => {
   }
 });
 
-// Endpoint to get members (agents) for a department
 app.get("/api/department-members/:departmentId", async (req, res) => {
   try {
     const { departmentId } = req.params;
@@ -552,12 +592,10 @@ app.get("/api/department-members/:departmentId", async (req, res) => {
   }
 });
 
-// Basic root endpoint; confirm server running
 app.get("/", (req, res) => {
   res.send("Backend server running. Use API endpoints under /api.");
 });
 
-// Start the express server
 app.listen(port, () => {
   console.log(`Backend server running on port ${port}`);
 });

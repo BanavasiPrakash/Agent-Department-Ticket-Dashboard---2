@@ -194,16 +194,16 @@ function TicketDashboard() {
   // Ref to ensure fetch is only done once
   const hasFetchedRef = useRef(false);
 
-  // State arrays and objects with initialization from localStorage where possible, for persistence
-  const [rows, setRows] = useState(() => {
-    const saved = localStorage.getItem("ticketDashboardRows");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [departmentsList, setDepartmentsList] = useState([]);
-  const [membersData, setMembersData] = useState(() => {
-    const saved = localStorage.getItem("ticketDashboardMembers");
-    return saved ? JSON.parse(saved) : [];
-  });
+ const [rows, setRows] = useState(() => {
+  const saved = localStorage.getItem("ticketDashboardRows");
+  return saved ? JSON.parse(saved) : [];
+});
+const [departmentsList, setDepartmentsList] = useState([]);
+const [membersData, setMembersData] = useState(() => {
+  const saved = localStorage.getItem("ticketDashboardMembers");
+  return saved ? JSON.parse(saved) : [];
+});
+const [departmentViewEnabled, setDepartmentViewEnabled] = useState(false)
   const [departmentMembersMap, setDepartmentMembersMap] = useState({});
   const [selectedDepartments, setSelectedDepartments] = useState([]);
   const [selectedCandidates, setSelectedCandidates] = useState([]);
@@ -823,6 +823,7 @@ function TicketDashboard() {
               );
 
               // Render the department grid container
+              
               return (
                 <div
                   key={dep.value}
@@ -877,6 +878,7 @@ function TicketDashboard() {
                     }}
                   >
                     {sortedAgentsToShow.map((agent, index) => (
+                      
                       <div
                         key={agent.id || `${dep.value}_${index}`}
                         style={{
@@ -1030,7 +1032,7 @@ function TicketDashboard() {
     );
   }
 
-  // Render section with fragments <>
+  // 4 Render section with fragments <>
   return (
     <>
       {/* Main dashboard header container */}
@@ -1406,6 +1408,17 @@ function TicketDashboard() {
                       />
                       30+ Days Tickets
                     </label>
+
+                    <label style={{ display: "flex", alignItems: "center", padding: "5px 0", cursor: "pointer" }}>
+  <input
+    type="checkbox"
+    checked={departmentViewEnabled}
+    onChange={e => setDepartmentViewEnabled(e.target.checked)}
+    style={{ marginRight: 8 }}
+  />
+  Departments
+</label>
+
                   </div>
                 )}
               </div>
@@ -1440,22 +1453,25 @@ function TicketDashboard() {
         </div>
 
         {/* Conditional rendering: show AgentTicketAgeTable if age filter selected, else show department grids */}
-        {selectedAges.length > 0 ? (
-          <AgentTicketAgeTable
-            membersData={filteredMembers}
-            selectedAges={selectedAges}
-            selectedStatuses={selectedStatuses}
-            onClose={() => setSelectedAges([])}
-            showTimeDropdown={showTimeDropdown}
-            selectedDepartmentId={currentDepartments && currentDepartments[0]?.value}
-            selectedAgentNames={
-              currentDepartments && selectedDeptAgents[currentDepartments[0]?.value] || []
-            }
-            departmentsMap={departmentsMap}
-          />
-        ) : (
-          departmentGrids
-        )}
+       {selectedAges.length > 0 || departmentViewEnabled ? (
+  <AgentTicketAgeTable
+    membersData={filteredMembers}
+    selectedAges={selectedAges}
+    selectedStatuses={selectedStatuses}
+    onClose={() => setSelectedAges([])}
+    showTimeDropdown={showTimeDropdown}
+    selectedDepartmentId={currentDepartments && currentDepartments[0]?.value}
+    selectedAgentNames={
+      currentDepartments && selectedDeptAgents[currentDepartments[0]?.value] || []
+    }
+    departmentsMap={departmentsMap}
+    departmentViewEnabled={departmentViewEnabled}
+    setDepartmentViewEnabled={setDepartmentViewEnabled}
+  />
+) : (
+  departmentGrids
+)}
+
 
       </div>
     </>
@@ -1464,3 +1480,4 @@ function TicketDashboard() {
 }
 
 export default TicketDashboard;
+//Finally
